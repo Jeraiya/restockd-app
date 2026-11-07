@@ -58,7 +58,7 @@ export function Overview() {
 
       {/* Hero: wallet with 3D card */}
       <section className="hero-wallet card glow">
-        <div className="hw-card"><WalletCard3D amount={fmt(w.available)} label="Available now" sub={`${fmt(w.pending)} on its way`} owner={db.settings.vendor.name} /></div>
+        <div className="hw-card"><WalletCard3D amount={fmt(w.available)} label="Available now" sub={`${fmt(w.pending)} on its way`} owner={db.settings.vendor.name} back={[{ label: 'On its way', value: fmt(w.pending) }, { label: 'Sold elsewhere', value: fmt(w.elsewhere) }, { label: 'Owed to consignors', value: fmt(w.owedConsignors) }, { label: 'Paid out so far', value: fmt(w.paid) }]} /></div>
         <div className="hw-info">
           <span className="badge neon"><Icon name="wallet" size={14} />Your wallet · Mollie</span>
           <div className="hw-amount">{fmt(w.available)}</div>

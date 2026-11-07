@@ -1,62 +1,81 @@
-import { ReactNode, useEffect, useRef } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Icon } from './Icon';
 
 /**
  * Holographic wallet card with real 3D depth.
- * Tilts towards the pointer, floats gently when idle, and has layers at different depths
- * (foil, logo, amount) so it reads as a physical object.
+ * - Mouse/pen: the card tilts towards the pointer anywhere over the wallet area.
+ * - Touch: tap to flip the card (scrolling keeps working).
+ * - Idle: floats gently. Reduced motion: stays still.
+ * The stage uses preserve-3d; clipping and blend effects live on a flat inner face,
+ * so the logo, amount and chip really sit above the card.
  */
-export function WalletCard3D({ amount, label, sub, owner }: { amount: string; label: string; sub: string; owner: string }) {
-  const wrap = useRef<HTMLDivElement>(null);
+export function WalletCard3D({ amount, label, sub, owner, back }: { amount: string; label: string; sub: string; owner: string; back: { label: string; value: string }[] }) {
+  const area = useRef<HTMLDivElement>(null);
+  const stage = useRef<HTMLDivElement>(null);
+  const [flipped, setFlipped] = useState(false);
+  const flipRef = useRef(false);
+  flipRef.current = flipped;
   useEffect(() => {
-    const el = wrap.current;
-    if (!el) return;
+    const el = area.current, st = stage.current;
+    if (!el || !st) return;
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    let raf = 0, tx = -8, ty = 14, cx = tx, cy = ty, hover = false, t = 0;
-    const loop = () => {
-      t += 0.012;
-      if (!hover && !reduce) { tx = -6 + Math.sin(t) * 5; ty = 12 + Math.cos(t * 0.8) * 7; }
-      cx += (tx - cx) * 0.08; cy += (ty - cy) * 0.08;
-      el.style.setProperty('--rx', `${cx.toFixed(2)}deg`);
-      el.style.setProperty('--ry', `${cy.toFixed(2)}deg`);
-      el.style.setProperty('--mx', `${50 + cy * 2.2}%`);
-      el.style.setProperty('--my', `${50 - cx * 2.6}%`);
+    let raf = 0, tx = -6, ty = 12, rx = tx, ry = ty, fl = 0, hover = false, t = 0, last = performance.now();
+    const loop = (now: number) => {
+      const dt = Math.min(64, now - last) / 16.7; last = now;
+      t += 0.012 * dt;
+      if (!hover && !reduce) { tx = -5 + Math.sin(t) * 5; ty = 10 + Math.cos(t * 0.8) * 8; }
+      if (reduce && !hover) { tx = -4; ty = 8; }
+      const k = 1 - Math.pow(1 - 0.12, dt);
+      rx += (tx - rx) * k; ry += (ty - ry) * k;
+      fl += ((flipRef.current ? 180 : 0) - fl) * (1 - Math.pow(1 - 0.14, dt));
+      st.style.transform = `rotateX(${rx.toFixed(2)}deg) rotateY(${(ry + fl).toFixed(2)}deg)`;
+      el.style.setProperty('--mx', `${(50 + ry * 2.4).toFixed(1)}%`);
+      el.style.setProperty('--my', `${(50 - rx * 2.8).toFixed(1)}%`);
+      el.style.setProperty('--sx', `${(-ry * 1.4).toFixed(1)}px`);
       raf = requestAnimationFrame(loop);
     };
     const move = (e: PointerEvent) => {
-      const r = el.getBoundingClientRect();
-      const px = (e.clientX - r.left) / r.width - 0.5, py = (e.clientY - r.top) / r.height - 0.5;
-      hover = true; tx = -py * 22; ty = px * 28;
+      if (e.pointerType === 'touch') return;
+      const r = st.getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      const px = Math.max(-1, Math.min(1, (e.clientX - cx) / (r.width * 0.75)));
+      const py = Math.max(-1, Math.min(1, (e.clientY - cy) / (r.height * 0.75)));
+      hover = true; tx = -py * 16; ty = px * 22;
     };
     const leave = () => { hover = false; };
-    el.addEventListener('pointermove', move); el.addEventListener('pointerleave', leave);
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerleave', leave);
     raf = requestAnimationFrame(loop);
     return () => { cancelAnimationFrame(raf); el.removeEventListener('pointermove', move); el.removeEventListener('pointerleave', leave); };
   }, []);
   return (
-    <div className="w3d" ref={wrap} aria-label={`${label}: ${amount}`}>
-      <div className="w3d-shadow" />
-      <div className="w3d-back b2"><span>Elsewhere</span></div>
-      <div className="w3d-back b1"><span>On its way</span></div>
-      <div className="w3d-card">
-        <div className="w3d-foil" />
-        <div className="w3d-sheen" />
-        <div className="w3d-grain" />
-        <div className="w3d-row w3d-z1">
-          <div className="w3d-mark">R</div>
-          <div className="w3d-nfc"><Icon name="tag" size={16} /></div>
+    <div className="w3d-area" ref={area}>
+      <button type="button" className="w3d" onClick={() => setFlipped((f) => !f)} aria-pressed={flipped} aria-label={`${label}: ${amount}. Tap to flip.`}>
+        <div className="w3d-shadow" />
+        <div className="w3d-stage" ref={stage}>
+          <div className="w3d-back b2" />
+          <div className="w3d-back b1" />
+          <div className="w3d-front">
+            <div className="w3d-face">
+              <div className="w3d-foil" />
+              <div className="w3d-sheen" />
+              <div className="w3d-grain" />
+            </div>
+            <div className="w3d-layer w3d-top"><div className="w3d-mark">R</div><div className="w3d-nfc"><Icon name="tag" size={16} /></div></div>
+            <div className="w3d-layer w3d-mid"><div className="w3d-label">{label}</div><div className="w3d-amount">{amount}</div><div className="w3d-sub">{sub}</div></div>
+            <div className="w3d-layer w3d-bot"><span>{owner}</span><span className="w3d-chip" /></div>
+          </div>
+          <div className="w3d-rear">
+            <div className="w3d-face rear" />
+            <div className="w3d-layer w3d-rear-in">
+              {back.map((b) => <div key={b.label} className="w3d-rear-row"><span>{b.label}</span><b>{b.value}</b></div>)}
+              <div className="w3d-rear-hint">Click to flip back</div>
+            </div>
+          </div>
         </div>
-        <div className="w3d-z2">
-          <div className="w3d-label">{label}</div>
-          <div className="w3d-amount">{amount}</div>
-          <div className="w3d-sub">{sub}</div>
-        </div>
-        <div className="w3d-row w3d-z1 w3d-foot">
-          <span>{owner}</span>
-          <span className="w3d-chip" />
-        </div>
-      </div>
+      </button>
+      <div className="w3d-hint">Click or tap the card to flip it</div>
     </div>
   );
 }
