@@ -154,10 +154,10 @@ export function buildDemo(): DB {
   ];
 
   return {
-    version: 2, settings, cards, items, tags, sales, shows, news,
+    version: 3, settings, cards, items, tags, sales, shows, news,
     payouts: [
-      { id: 'p1', at: day(-27), amount: 79500, status: 'paid' }, { id: 'p2', at: day(-20), amount: 11200, status: 'paid' },
-      { id: 'p3', at: day(-6), amount: 92800, status: 'paid' }, { id: 'p4', at: day(3, 9), amount: 0, status: 'scheduled' },
+      { id: 'p1', at: day(-27), amount: 48000, status: 'paid' }, { id: 'p2', at: day(-20), amount: 9600, status: 'paid' },
+      { id: 'p3', at: day(-6), amount: 52000, status: 'paid' }, { id: 'p4', at: day(3, 9), amount: 0, status: 'scheduled' },
     ],
     stolen: [
       { id: 'r1', grader: 'PSA', cert: '61234987', cardName: 'Charizard 4/102 Base Set (PSA 8)', reportedAt: day(-3), policeRef: 'NL-2026-118843', mine: true, status: 'active', hits: [{ at: day(-1, 15), where: 'Scanned at a vendor intake in Antwerp, BE' }] },
