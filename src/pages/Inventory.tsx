@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Icon } from '../components/Icon';
 import { Layout } from '../components/Layout';
-import { Delta, Empty, Field, GAME_ABBR, Modal, MoneyInput, Seg, Thumb, Toggle, attempt, toast } from '../components/ui';
+import { Delta, Empty, Field, GAME_ABBR, Modal, MoneyInput, Seg, Toggle, attempt, toast } from '../components/ui';
+import { HoloThumb } from '../components/visual';
 import { addItem, cardOf, isOwner, setLocation, setManualPrice, setMaxDiscount, tagOfItem, toggleChannel, useDB } from '../data/store';
 import { fmt, fmtDate } from '../lib/money';
 import { computePrice, pctChange } from '../lib/pricing';
@@ -37,7 +38,7 @@ export function Inventory() {
                 const ch30 = pctChange(c.market.history[0], c.market.trend);
                 return (
                   <tr key={i.id} className="click" onClick={() => setOpen(i.id)}>
-                    <td><div className="row"><Thumb kind={c.kind === 'graded' ? 'graded' : c.kind === 'sealed' ? 'sealed' : 'single'} label={c.kind === 'graded' ? i.grade ?? 'GR' : GAME_ABBR[c.game]} /><div><div className="name">{c.name}</div><div className="sub">{c.set} · {c.number}{i.consignorId && ' · consignment'}</div></div></div></td>
+                    <td><div className="row"><HoloThumb game={c.game} kind={c.kind} size={46} label={c.kind === 'graded' ? i.grade : c.kind === 'sealed' ? 'BOX' : GAME_ABBR[c.game]} /><div><div className="name">{c.name}</div><div className="sub">{c.set} · {c.number}{i.consignorId && ' · consignment'}</div></div></div></td>
                     <td>{c.kind === 'single' ? <span className="badge">{i.condition} · {i.language}</span> : c.kind === 'graded' ? <span className="badge">{i.grader} {i.grade}</span> : <span className="badge">Sealed</span>}</td>
                     <td className="r">{fmt(i.cost)}</td>
                     <td className="r strong">{i.status === 'sold' ? <span className="muted">Sold</span> : fmt(i.price)}{i.manualPrice != null && <div className="sub">fixed</div>}</td>
