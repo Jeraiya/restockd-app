@@ -4,7 +4,7 @@ import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'rec
 import { Icon } from '../components/Icon';
 import { Layout } from '../components/Layout';
 import { Seg, attempt } from '../components/ui';
-import { Donut, HoloThumb, Money, PromoTile, Ring, WalletCard3D } from '../components/visual';
+import { Donut, HoloThumb, Money, PromoTile, Ring, WalletStack } from '../components/visual';
 import { cardOf, itemName, markNoticesRead, me, nextShow, payoutNow, priceChanges, saleName, tagOfItem, useDB, walletSummary } from '../data/store';
 import { fmt, fmtDay, fmtTime } from '../lib/money';
 
@@ -50,8 +50,11 @@ export function Overview() {
   ];
   const ready = Math.round((checks.filter((c) => c.ok).length / checks.length) * 100);
 
-  const recent = [...db.sales].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 4);
-  const hot = [...inStock].sort((a, b) => b.scans - a.scans).slice(0, 3);
+  const recent = [...db.sales].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 3);
+  const netIn = (from: number, to: number) => db.sales.filter((s) => s.viaWallet && Date.now() - new Date(s.at).getTime() >= from * 86400000 && Date.now() - new Date(s.at).getTime() < to * 86400000).reduce((a, s) => a + s.price - s.fee - s.commission, 0);
+  const prev = netIn(30, 60), cur = netIn(0, 30);
+  const walletTrend = prev > 0 ? ((cur - prev) / prev) * 100 : undefined;
+  const hot = [...inStock].sort((a, b) => b.scans - a.scans).slice(0, 6);
   const listed = (k: 'ebay' | 'marktplaats' | 'shop') => inStock.filter((i) => i.channels[k] && !(i.pausedOnline && k !== 'shop')).length;
 
   return (
@@ -72,15 +75,15 @@ export function Overview() {
         <section className="card dark hero2 b-hero">
           <div className="hero2-copy">
             <div className="hello">Hello, {user.name}</div>
-            <div className="muted small">Available in your wallet</div>
-            <div className="hero2-amount"><Money cents={w.available} /></div>
+            <div className="muted small">Stock value at trend</div>
+            <div className="hero2-amount"><Money cents={inStock.reduce((a, i) => a + cardOf(db, i).market.trend, 0)} /></div>
             <div className="acts">
               {[
                 { to: '/pos', icon: 'cart', label: 'Sell' },
                 { to: '/inventory', icon: 'camera', label: 'Add card' },
                 { to: '/tags', icon: 'tag', label: 'Tap tag' },
               ].map((a) => <Link key={a.label} to={a.to} className="act"><span><Icon name={a.icon} size={20} /></span>{a.label}</Link>)}
-              <button className="act" onClick={() => attempt(() => payoutNow(), 'Payout started to your bank account')}><span className="lime"><Icon name="download" size={20} /></span>Pay out</button>
+              <Link to="/show-ready" className="act"><span className="lime"><Icon name="check" size={20} /></span>Show ready</Link>
             </div>
             <div className="slider">
               <div className="slider-head"><span className="muted small">Show readiness</span><b>{ready}%</b></div>
@@ -88,9 +91,46 @@ export function Overview() {
               <div className="muted small">{show ? <>{daysLeft} days until <b className="w">{show.name}</b> · booth {show.booth}</> : 'No show planned'}</div>
             </div>
           </div>
-          <div className="hero2-card">
-            <WalletCard3D amount={fmt(w.available)} label="Available now" sub={`${fmt(w.pending)} on its way`} owner={db.settings.vendor.name}
-              back={[{ label: 'On its way', value: fmt(w.pending) }, { label: 'Sold elsewhere', value: fmt(w.elsewhere) }, { label: 'Owed to consignors', value: fmt(w.owedConsignors) }, { label: 'Paid out so far', value: fmt(w.paid) }]} />
+          <div className="hero2-chart">
+            <div className="row between"><span className="muted small">Sold, last {range} days</span><Seg size="sm" value={range} onChange={setRange} options={[{ key: '30', label: '30d' }, { key: '90', label: '90d' }]} /></div>
+            <div className="hero2-sold"><Money cents={rangeTotal} /> <span className="muted small">{inRange.length} sales</span></div>
+            <div className="hero2-plot">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chart} margin={{ top: 10, right: 4, left: 4, bottom: 0 }}>
+                  <defs><linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#e6ff00" stopOpacity={0.55} /><stop offset="1" stopColor="#e6ff00" stopOpacity={0} /></linearGradient></defs>
+                  <XAxis dataKey="day" tickLine={false} axisLine={false} interval={Math.floor(n / 4)} />
+                  <YAxis hide domain={[0, 'dataMax + 50']} />
+                  <Tooltip cursor={{ stroke: 'rgba(255,255,255,.35)', strokeDasharray: '3 4' }} content={({ active, payload, label }) => active && payload?.length ? <div className="pill-tip light"><b>{fmt(Number(payload[0].value) * 100)}</b> {label}</div> : null} />
+                  <Area type="monotone" dataKey="v" stroke="#e6ff00" strokeWidth={2} fill="url(#hg)" activeDot={{ r: 5, fill: '#fff', stroke: '#e6ff00', strokeWidth: 2 }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </section>
+
+
+        {/* Wallet: stacked cards, payout actions and transactions */}
+        <section className="card wallet-panel b-wallet">
+          <div className="card-head"><h2>My wallet</h2><Link className="wp-add" to="/wallet">Details</Link></div>
+          <WalletStack cards={[
+            { key: 'av', label: 'Available', amount: w.available, sub: `Mollie · payouts ${db.settings.payoutSchedule}`, tone: 'lime', trend: walletTrend },
+            { key: 'pe', label: 'On its way', amount: w.pending, sub: 'Available after 2 days', tone: 'silver' },
+            { key: 'el', label: 'Sold elsewhere', amount: w.elsewhere, sub: 'eBay and Marktplaats pay you directly', tone: 'blue' },
+            { key: 'co', label: 'Owed to consignors', amount: w.owedConsignors, sub: 'Part of your balance', tone: 'graphite' },
+          ]} />
+          <div className="wp-actions">
+            <Link className="wp-btn" to="/wallet"><Icon name="clock" size={16} />Schedule</Link>
+            <button className="wp-btn lime" onClick={() => attempt(() => payoutNow(), 'Payout started to your bank account')}><Icon name="download" size={16} />Pay out</button>
+          </div>
+          <div className="row between wp-head"><b>Recent transactions</b><Link to="/wallet" className="muted small">View all</Link></div>
+          <div className="pills">
+            {recent.map((s) => (
+              <div className="prow dark" key={s.id}>
+                <span className={`li-ico ch-${s.channel}`}><Icon name={s.channel === 'ebay' || s.channel === 'marktplaats' ? 'layers' : s.channel === 'tag' ? 'tag' : 'cart'} size={16} /></span>
+                <div className="grow"><div className="li-title ellipsis">{saleName(db, s)}</div><div className="li-sub">{fmtTime(s.at)}</div></div>
+                <b className={s.viaWallet ? 'pos' : ''}>+<Money cents={s.viaWallet ? s.price - s.fee - s.commission : s.price} /></b>
+              </div>
+            ))}
           </div>
         </section>
 
@@ -119,25 +159,6 @@ export function Overview() {
           </div>
         </section>
 
-        {/* Sales chart */}
-        <section className="card b-chart">
-          <div className="card-head"><h2>Sales</h2><Seg size="sm" value={range} onChange={setRange} options={[{ key: '30', label: '30 days' }, { key: '90', label: '90 days' }]} /></div>
-          <div className="chart-total"><Money cents={rangeTotal} /><span className="muted small"> · {inRange.length} sales</span></div>
-          <div style={{ height: 200 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chart} margin={{ top: 10, right: 6, left: 6, bottom: 0 }}>
-                <defs>
-                  <pattern id="hatchA" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" fill="#ffffff" /><rect width="3" height="8" fill="#e4e6ea" /></pattern>
-                </defs>
-                <XAxis dataKey="day" tickLine={false} axisLine={false} interval={Math.floor(n / 5)} />
-                <YAxis hide domain={[0, 'dataMax + 50']} />
-                <Tooltip cursor={{ stroke: '#0a0a0b', strokeDasharray: '3 4' }} content={({ active, payload, label }) => active && payload?.length ? <div className="pill-tip"><b>{fmt(Number(payload[0].value) * 100)}</b> {label}</div> : null} />
-                <Area type="monotone" dataKey="v" stroke="#0a0a0b" strokeWidth={2} fill="url(#hatchA)" dot={false} activeDot={{ r: 5, fill: '#e6ff00', stroke: '#0a0a0b', strokeWidth: 2 }} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </section>
-
         {/* Next show */}
         <section className="card b-show">
           <div className="card-head"><h2>Next show</h2></div>
@@ -149,34 +170,6 @@ export function Overview() {
               <Link className="btn primary" to="/show-ready">{ready === 100 ? 'Ready to go' : 'Get show ready'}</Link>
             </div>
           ) : <Link className="btn primary" to="/shows">Find a show</Link>}
-        </section>
-
-        {/* Buyers looking at */}
-        <section className="card b-hot">
-          <div className="card-head"><h2>Buyers are looking at</h2><Link className="round-btn sm" to="/insights" aria-label="Insights"><Icon name="up" size={16} /></Link></div>
-          <div className="hot-grid three">
-            {hot.map((i) => { const c = cardOf(db, i); return (
-              <Link to="/inventory" key={i.id} className="hot">
-                <HoloThumb game={c.game} kind={c.kind} size={88} label={c.kind === 'graded' ? `${i.grader} ${i.grade}` : undefined} />
-                <div className="hot-name ellipsis">{itemName(db, i)}</div>
-                <div className="row between small"><b><Money cents={i.price} /></b><span className="muted">{i.scans} scans</span></div>
-              </Link>
-            ); })}
-          </div>
-        </section>
-
-        {/* Recent sales */}
-        <section className="card b-recent">
-          <div className="card-head"><h2>Recent sales</h2><Link className="round-btn sm" to="/wallet" aria-label="Wallet"><Icon name="up" size={16} /></Link></div>
-          <div className="pills">
-            {recent.map((s) => (
-              <div className="prow" key={s.id}>
-                <span className={`li-ico ch-${s.channel}`}><Icon name={s.channel === 'ebay' || s.channel === 'marktplaats' ? 'layers' : s.channel === 'tag' ? 'tag' : 'cart'} size={16} /></span>
-                <div className="grow"><div className="li-title ellipsis">{saleName(db, s)}</div><div className="li-sub">{fmtTime(s.at)} · {s.channel}</div></div>
-                <b><Money cents={s.price} /></b>
-              </div>
-            ))}
-          </div>
         </section>
 
         {/* Channels */}
@@ -191,6 +184,20 @@ export function Overview() {
             ].map((c) => <div key={c.n} className="chan"><span className="chan-logo">{c.l}</span><div><div className="li-title">{c.n}</div><div className="li-sub">{c.s}</div></div></div>)}
           </div>
         </section>
+        {/* Buyers looking at */}
+        <section className="card b-hot">
+          <div className="card-head"><h2>Buyers are looking at</h2><Link className="round-btn sm" to="/insights" aria-label="Insights"><Icon name="up" size={16} /></Link></div>
+          <div className="hot-grid six">
+            {hot.map((i) => { const c = cardOf(db, i); return (
+              <Link to="/inventory" key={i.id} className="hot">
+                <HoloThumb game={c.game} kind={c.kind} size={88} label={c.kind === 'graded' ? `${i.grader} ${i.grade}` : undefined} />
+                <div className="hot-name ellipsis">{itemName(db, i)}</div>
+                <div className="row between small"><b><Money cents={i.price} /></b><span className="muted">{i.scans} scans</span></div>
+              </Link>
+            ); })}
+          </div>
+        </section>
+
       </div>
     </Layout>
   );

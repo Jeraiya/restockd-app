@@ -187,3 +187,44 @@ export function PromoTile({ to, title, tone, visual }: { to: string; title: Reac
     </Link>
   );
 }
+
+export interface StackCard { key: string; label: string; amount: number; sub: string; tone: 'lime' | 'silver' | 'blue' | 'graphite'; trend?: number }
+/**
+ * Wallet with stacked cards. The front card shows the full balance; the cards behind
+ * peek out with their label and amount. Tap a card behind to bring it to the front.
+ */
+export function WalletStack({ cards }: { cards: StackCard[] }) {
+  const [order, setOrder] = useState(cards.map((c) => c.key));
+  useEffect(() => { setOrder((o) => (o.length === cards.length ? o : cards.map((c) => c.key))); }, [cards]);
+  const n = cards.length;
+  const PEEK = 38;
+  return (
+    <div className="wstack" style={{ paddingTop: (n - 1) * PEEK }}>
+      {cards.map((c) => {
+        const pos = order.indexOf(c.key); // 0 = front
+        const depth = pos;
+        const style = {
+          transform: `translateY(${-depth * PEEK}px) scale(${1 - depth * 0.045})`,
+          zIndex: n - depth,
+        } as React.CSSProperties;
+        const front = pos === 0;
+        return (
+          <button key={c.key} type="button" className={`wcard ${c.tone} ${front ? 'front' : 'behind'}`} style={style}
+            onClick={() => !front && setOrder([c.key, ...order.filter((k) => k !== c.key)])}
+            aria-label={front ? `${c.label}: ${(c.amount / 100).toFixed(2)} euro` : `Show ${c.label}`}>
+            <div className="wcard-tab"><span>{c.label}</span><Money cents={c.amount} /></div>
+            <div className="wcard-body">
+              <div className="wcard-top"><span className="wcard-mark">R</span><span className="wcard-chip" /></div>
+              <div className="wcard-label">{c.label}</div>
+              <div className="wcard-row">
+                <Money cents={c.amount} className="wcard-amount" />
+                {c.trend != null && <span className={`wcard-trend ${c.trend >= 0 ? 'up' : 'down'}`}>{c.trend >= 0 ? '↑' : '↓'} {Math.abs(c.trend).toFixed(1)}%</span>}
+              </div>
+              <div className="wcard-sub">{c.sub}</div>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
