@@ -125,7 +125,7 @@ export function buildDemo(): DB {
 
   const sale = (id: string, d: number, itemId: string | null, price: number, method: Sale['method'], channel: Sale['channel'], showId?: string, discount = 0): Sale => {
     const p = Math.round(price * 100);
-    const viaWallet = method !== 'external';
+    const viaWallet = method !== 'external' && method !== 'cash' && method !== 'tikkie';
     const item = itemId ? items.find((i) => i.id === itemId) : undefined;
     const fee = viaWallet ? providerFee(method, p) : 0;
     const commission = viaWallet ? Math.round((p * settings.commissionPct) / 100) : 0;
@@ -154,7 +154,7 @@ export function buildDemo(): DB {
   ];
 
   return {
-    version: 1, settings, cards, items, tags, sales, shows, news,
+    version: 2, settings, cards, items, tags, sales, shows, news,
     payouts: [
       { id: 'p1', at: day(-27), amount: 79500, status: 'paid' }, { id: 'p2', at: day(-20), amount: 11200, status: 'paid' },
       { id: 'p3', at: day(-6), amount: 92800, status: 'paid' }, { id: 'p4', at: day(3, 9), amount: 0, status: 'scheduled' },

@@ -142,3 +142,48 @@ export function HoloThumb({ game, kind, label, size = 40 }: { game: string; kind
     </div>
   );
 }
+
+/** Money with smaller, lighter decimals: €1,234.56 */
+export function Money({ cents, className }: { cents: number; className?: string }) {
+  const s = new Intl.NumberFormat('en-IE', { style: 'currency', currency: 'EUR' }).format(cents / 100);
+  const i = s.lastIndexOf('.');
+  return <span className={className}>{i > 0 ? <>{s.slice(0, i)}<span className="money-d">{s.slice(i)}</span></> : s}</span>;
+}
+
+/** Donut with rounded segments; the last segment is hatched. */
+export function Donut({ parts, size = 210, children }: { parts: { value: number; color: string; hatch?: boolean }[]; size?: number; children?: ReactNode }) {
+  const total = parts.reduce((a, p) => a + p.value, 0) || 1;
+  const r = size / 2 - 18, c = 2 * Math.PI * r, gap = 10;
+  let off = 0;
+  return (
+    <div className="donut" style={{ width: size, height: size }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+        <defs>
+          <pattern id="hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="7" height="7" fill="#1c1c1f" /><rect width="3" height="7" fill="#4a4a50" />
+          </pattern>
+        </defs>
+        <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
+          {parts.map((p, i) => {
+            const len = Math.max(0, (p.value / total) * c - gap);
+            const el = <circle key={i} cx={size / 2} cy={size / 2} r={r} fill="none" stroke={p.hatch ? 'url(#hatch)' : p.color} strokeWidth={26} strokeLinecap="round" strokeDasharray={`${len} ${c}`} strokeDashoffset={-off} />;
+            off += (p.value / total) * c;
+            return el;
+          })}
+        </g>
+      </svg>
+      <div className="donut-in">{children}</div>
+    </div>
+  );
+}
+
+/** Tile with a big tilted visual, like a promo card. */
+export function PromoTile({ to, title, tone, visual }: { to: string; title: ReactNode; tone: 'lime' | 'black'; visual: ReactNode }) {
+  return (
+    <Link to={to} className={`promo ${tone}`}>
+      <div className="promo-visual">{visual}</div>
+      <div className="promo-title">{title}</div>
+      <span className="promo-go"><Icon name="up" size={15} /></span>
+    </Link>
+  );
+}

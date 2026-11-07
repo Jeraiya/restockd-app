@@ -39,7 +39,7 @@ export function Wallet() {
               <tbody>{[...db.payouts].reverse().map((p) => <tr key={p.id}><td>{fmtDate(p.at)}</td><td><span className={`badge ${p.status === 'paid' ? 'pos' : 'warn'}`}>{p.status === 'paid' ? 'Paid to bank' : 'Scheduled'}</span></td><td className="r strong">{p.status === 'paid' ? fmt(p.amount) : 'Whatever is available'}</td></tr>)}</tbody>
             </table></div>
           )}
-          {tab === 'elsewhere' && <div className="card-pad muted small">Cash and Tikkie count in your cash-up but never pass through your wallet.</div>}
+          {tab === 'elsewhere' && <div className="card-pad muted small">eBay and Marktplaats pay you directly. Cash and Tikkie count in your cash-up but never pass through your wallet.</div>}
         </div>
         <div className="stack">
           <div className="card">

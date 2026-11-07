@@ -25,7 +25,7 @@ export function Shows() {
         <div className="list">
           {upcoming.map((s) => (
             <div key={s.id} className="li card-pad" style={{ padding: '14px 20px' }}>
-              <div className="li-ico" style={{ width: 56, height: 56, flexDirection: 'column', background: 'var(--neon-soft)', color: 'var(--neon)' }}><b style={{ fontSize: 18 }}>{new Date(s.date).getDate()}</b><small>{new Date(s.date).toLocaleDateString('en-GB', { month: 'short' })}</small></div>
+              <div className="li-ico date-chip"><b style={{ fontSize: 18 }}>{new Date(s.date).getDate()}</b><small>{new Date(s.date).toLocaleDateString('en-GB', { month: 'short' })}</small></div>
               <div className="li-main"><div className="li-title">{s.name}</div><div className="li-sub">{s.city} · {s.tables} tables · {s.games} · entry {s.entry} · table {fmt(s.boothFee)}</div></div>
               <div className="li-end stack" style={{ gap: 6, alignItems: 'flex-end' }}>
                 <span className="badge neon">{s.vendors + (s.attending ? 0 : 0)} Restockd vendors</span>

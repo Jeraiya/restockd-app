@@ -88,8 +88,8 @@ export function Checkout() {
           <div className="big-num">{fmt(total)}</div>
           <div className="stack mt" style={{ gap: 8 }}>
             {METHODS.map((m) => (
-              <label key={m.key} className={`user-pick ${method === m.key ? 'on' : ''}`} style={method === m.key ? { borderColor: 'var(--neon)' } : undefined}>
-                <input id={`pm-${m.key}`} type="radio" name="pm" checked={method === m.key} onChange={() => setMethod(m.key)} style={{ accentColor: 'var(--neon)' }} />
+              <label key={m.key} className={`user-pick ${method === m.key ? 'on' : ''}`}>
+                <input id={`pm-${m.key}`} type="radio" name="pm" checked={method === m.key} onChange={() => setMethod(m.key)} />
                 <div><div className="strong">{m.label}</div><div className="small muted">{m.note}</div></div>
               </label>
             ))}

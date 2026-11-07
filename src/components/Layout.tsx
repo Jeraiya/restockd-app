@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import { me, priceChanges, switchMember, useDB } from '../data/store';
 import { Icon } from './Icon';
 
@@ -34,6 +34,9 @@ export function Layout({ title, sub, actions, children }: { title: string; sub?:
   const review = priceChanges(db).filter((c) => c.review).length;
   const unread = db.notices.filter((n) => !n.read).length;
   const groups = [...new Set(NAV.map((n) => n.group))];
+  const tab = (to: string, icon: string, label: string) => (
+    <NavLink to={to} end={to === '/'} className={({ isActive }) => `tab ${isActive ? 'active' : ''}`}><Icon name={icon} size={20} />{label}</NavLink>
+  );
   return (
     <div className="app">
       <aside className={`side ${open ? 'open' : ''}`}>
@@ -48,7 +51,6 @@ export function Layout({ title, sub, actions, children }: { title: string; sub?:
                 <NavLink key={n.to} to={n.to} end={n.to === '/'} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
                   <Icon name={n.icon} />{n.label}
                   {n.to === '/show-ready' && review > 0 && <span className="nav-count">{review}</span>}
-                  {n.to === '/' && unread > 0 && <span className="nav-count">{unread}</span>}
                 </NavLink>
               ))}
             </div>
@@ -66,16 +68,27 @@ export function Layout({ title, sub, actions, children }: { title: string; sub?:
           </select>
         </div>
       </aside>
-      {open && <div className="overlay" style={{ zIndex: 30, background: 'rgba(0,0,0,.4)' }} onClick={() => setOpen(false)} />}
+      {open && <div className="overlay" style={{ zIndex: 30 }} onClick={() => setOpen(false)} />}
       <main className="main">
-        <div className="demo-bar">Demo · all data is example data stored in this browser</div>
         <div className="top">
           <button className="btn icon menu-btn" onClick={() => setOpen(true)} aria-label="Menu"><Icon name="menu" /></button>
           <h1>{title}{sub && <span className="sub">{sub}</span>}</h1>
-          {actions}
+          <div className="top-tools">
+            {actions}
+            <span className="demo-bar hide-m">Demo data</span>
+            <Link className="round-btn hide-m" to="/inventory" aria-label="Search stock"><Icon name="search" /></Link>
+            <Link className="round-btn" to="/" aria-label="Notifications"><Icon name="alert" />{unread > 0 && <span className="dot-red" />}</Link>
+          </div>
         </div>
         <div className="page-in" key={loc.pathname}>{children}</div>
       </main>
+      <nav className="tabbar" aria-label="Quick menu">
+        {tab('/', 'dashboard', 'Home')}
+        {tab('/inventory', 'box', 'Stock')}
+        <NavLink to="/pos" className="tab sell" aria-label="Sell"><Icon name="cart" size={22} /></NavLink>
+        {tab('/tags', 'tag', 'Tags')}
+        <button className="tab" onClick={() => setOpen(true)}><Icon name="menu" size={20} />More</button>
+      </nav>
     </div>
   );
 }
