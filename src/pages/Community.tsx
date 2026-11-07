@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { Icon } from '../components/Icon';
 import { Layout } from '../components/Layout';
 import { Empty, Field, Modal, Seg, attempt, toast } from '../components/ui';
-import { cardOf, checkCert, resolveStolen, reportStolen, setAttending, useDB } from '../data/store';
-import { fmt, fmtDate, fmtDay, fmtTime } from '../lib/money';
+import { cardOf, setAttending, useDB } from '../data/store';
+import { fmt, fmtDate, fmtDay } from '../lib/money';
 import type { Game, Show } from '../lib/types';
 
 /* ---------- Card shows ---------- */
@@ -72,57 +71,6 @@ export function News() {
           {yours.some((y) => y.d > 25) && <div className="notice mt"><Icon name="info" /><div>Some cards rose more than 25%. Worth listing them online too?</div></div>}
         </div>
       </div>
-    </Layout>
-  );
-}
-
-/* ---------- Stolen registry ---------- */
-export function Stolen() {
-  const db = useDB();
-  const [cert, setCert] = useState('');
-  const [result, setResult] = useState<ReturnType<typeof checkCert> | null>(null);
-  const [reporting, setReporting] = useState(false);
-  const [f, setF] = useState({ grader: 'PSA', cert: '', cardName: '', policeRef: '' });
-  return (
-    <Layout title="Stolen registry" sub="Worldwide alerts on certificate numbers of graded cards" actions={<button className="btn primary" onClick={() => setReporting(true)}><Icon name="shield" />Report a stolen slab</button>}>
-      <div className="grid g-main">
-        <div className="card glow">
-          <div className="card-head"><h2>Check a certificate</h2><span className="hint">Free for everyone</span></div>
-          <form className="row wrap" onSubmit={(e) => { e.preventDefault(); setResult(checkCert(cert)); }}>
-            <input id="check-cert" className="in" style={{ maxWidth: 260 }} placeholder="Cert number, e.g. 61234987" value={cert} onChange={(e) => { setCert(e.target.value); setResult(null); }} />
-            <button className="btn primary" type="submit">Check</button>
-          </form>
-          {result && (result.stolen
-            ? <div className="notice warn mt"><Icon name="alert" /><div><b>Reported stolen.</b> {result.report.cardName} · {result.report.grader} {result.report.cert}. Don't buy it and don't confront the seller. Restockd informs the owner and passes details to the police on request.</div></div>
-            : <div className="notice mt"><Icon name="check" /><div>Not reported as stolen in Restockd. Always check the cert on the grader's own website too.</div></div>)}
-          <div className="list mt small">
-            <div className="li"><Icon name="cart" /><div className="li-main">Every intake, purchase and buyer scan in Restockd is checked against the registry.</div></div>
-            <div className="li"><Icon name="layers" /><div className="li-main">eBay listings with a certificate number can be monitored. Not live in this demo.</div></div>
-            <div className="li"><Icon name="lock" /><div className="li-main">Names are never public. Details go to the police only.</div></div>
-          </div>
-        </div>
-        <div className="card">
-          <div className="card-head"><h2>Your reports</h2></div>
-          {db.stolen.filter((r) => r.mine).length ? db.stolen.filter((r) => r.mine).map((r) => (
-            <div key={r.id} className="summary" style={{ marginBottom: 10 }}>
-              <div className="row between"><b>{r.cardName}</b><span className={`badge ${r.status === 'active' ? 'neg' : 'pos'}`}>{r.status === 'active' ? 'Active' : 'Resolved'}</span></div>
-              <div className="muted small">{r.grader} {r.cert} · police ref {r.policeRef} · reported {fmtDate(r.reportedAt)}</div>
-              {r.hits.map((h, i) => <div key={i} className="notice warn" style={{ marginTop: 8 }}><Icon name="alert" /><div><b>{fmtTime(h.at)}</b> · {h.where}</div></div>)}
-              {r.status === 'active' && <button className="btn sm mt" onClick={() => attempt(() => resolveStolen(r.id), 'Marked as resolved')}>Got it back</button>}
-            </div>
-          )) : <Empty title="No reports" />}
-        </div>
-      </div>
-      {reporting && <Modal title="Report a stolen slab" sub="You need a police report number. This prevents false reports." onClose={() => setReporting(false)} foot={<button className="btn primary" onClick={() => attempt(() => { reportStolen(f); setReporting(false); }, 'Reported. Every scan worldwide now alerts you.')}>Report</button>}>
-        <div className="fg">
-          <Field label="Grader"><select id="r-grader" className="in" value={f.grader} onChange={(e) => setF({ ...f, grader: e.target.value })}>{['PSA', 'CGC', 'BGS', 'SGC', 'TAG'].map((g) => <option key={g}>{g}</option>)}</select></Field>
-          <Field label="Cert number"><input id="r-cert" className="in" value={f.cert} onChange={(e) => setF({ ...f, cert: e.target.value })} /></Field>
-          <Field label="Card" className="full"><input id="r-card" className="in" value={f.cardName} onChange={(e) => setF({ ...f, cardName: e.target.value })} placeholder="e.g. Charizard 4/102 (PSA 8)" /></Field>
-          <Field label="Police report number" className="full"><input id="r-police" className="in" value={f.policeRef} onChange={(e) => setF({ ...f, policeRef: e.target.value })} /></Field>
-        </div>
-        <p className="muted small">Tip: also send the police report to the grading company. Some can block a certificate.</p>
-      </Modal>}
-      <p className="muted small mt">Public check page for buyers: <Link to="/check">open</Link></p>
     </Layout>
   );
 }

@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { computePrice, needsReview, providerFee } from '../lib/pricing';
-import type { Card, Cents, ChannelKey, DB, Member, PayMethod, Sale, SaleChannel, StockItem, Tag } from '../lib/types';
+import type { Card, Cents, ChannelKey, DB, Member, PayMethod, ProofKind, Sale, SaleChannel, StockItem, Tag } from '../lib/types';
 import { buildDemo } from './demo';
 
 const KEY = 'restockd-app-v1';
@@ -10,7 +10,7 @@ function load(): DB {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as DB;
-      if (parsed.version === 3) return parsed;
+      if (parsed.version === 4) return parsed;
     }
   } catch { /* storage blocked: fall back to demo data */ }
   return buildDemo();
@@ -84,7 +84,8 @@ export function addItem(n: NewItem): StockItem {
     if (stolen && !stolen.mine) {
       update((d) => {
         const r = d.stolen.find((x) => x.id === stolen.id)!;
-        r.hits.push({ at: nowIso(), where: `Intake attempt by ${d.settings.vendor.name}` });
+        r.hits.push({ at: nowIso(), kind: 'intake', where: `Intake attempt by a vendor in ${d.settings.vendor.city}` });
+        r.events.push({ at: nowIso(), text: 'Hit: intake attempt blocked, details saved for the police' });
       });
       throw new Error(`Stop: certificate ${cert} is reported stolen. Do not buy or list this slab. The owner has been notified.`);
     }
@@ -170,6 +171,9 @@ export function buyerScan(id: string) {
     const tag = d.tags.find((x) => x.id === t.id)!;
     tag.scans += 1;
     if (tag.itemId) { const it = d.items.find((i) => i.id === tag.itemId); if (it) it.scans += 1; }
+    const it = tag.itemId ? d.items.find((i) => i.id === tag.itemId) : undefined;
+    const flagged = it?.cert ? d.stolen.find((r) => r.cert === it.cert && r.status === 'active') : undefined;
+    if (flagged) { flagged.hits.push({ at: nowIso(), kind: 'scan', where: 'A buyer scanned the tag of this slab' }); flagged.events.push({ at: nowIso(), text: 'Hit: buyer scan of a slab tag' }); }
     if (tag.status === 'lost' && tag.ownerId === d.settings.vendor.id) {
       d.notices.unshift({ id: uid('no'), at: nowIso(), kind: 'lost', text: `Your lost tag ${tag.id} was just scanned. The scan time is saved in the tag history.` });
       tag.history.push({ at: nowIso(), text: 'Scanned while marked as lost' });
@@ -261,16 +265,47 @@ export function payConsignor(id: string) { const owed = consignorOwed(db, id); u
 export function addConsignor(name: string, pct: number) { update((d) => { d.consignors.push({ id: uid('k'), name, ownerSharePct: pct, paidOut: 0 }); }); }
 
 /* ---------- Stolen registry ---------- */
-export function reportStolen(r: { grader: string; cert: string; cardName: string; policeRef: string }) {
+export interface NewReport { grader: string; cert: string; cardName: string; policeRef: string; stolenOn: string; stolenWhere: string; proof: ProofKind; confirmed: boolean }
+/**
+ * Step 1: the owner reports. Needs a police reference, proof of ownership and a confirmation.
+ * The report starts "in review"; it is not matched against anything until it is active.
+ */
+export function reportStolen(r: NewReport) {
+  const cert = r.cert.trim();
+  if (!/^\d{6,12}$/.test(cert)) throw new Error('Enter the certificate number as printed on the slab label (6 to 12 digits).');
+  if (!r.cardName.trim()) throw new Error('Describe the card, for example "Charizard 4/102 (PSA 8)".');
   if (!r.policeRef.trim()) throw new Error('A police report number is required. It prevents false reports.');
-  if (db.stolen.some((x) => x.cert === r.cert.trim() && x.status === 'active')) throw new Error('This certificate is already reported.');
-  update((d) => { d.stolen.unshift({ id: uid('r'), grader: r.grader, cert: r.cert.trim(), cardName: r.cardName.trim(), policeRef: r.policeRef.trim(), reportedAt: nowIso(), mine: true, status: 'active', hits: [] }); });
+  if (!r.confirmed) throw new Error('Confirm that the information is correct.');
+  if (db.stolen.some((x) => x.cert === cert && (x.status === 'active' || x.status === 'review'))) throw new Error('This certificate is already reported.');
+  const held = db.otherCerts.includes(cert);
+  update((d) => {
+    const at = nowIso();
+    d.stolen.unshift({
+      id: uid('r'), grader: r.grader, cert, cardName: r.cardName.trim(), policeRef: r.policeRef.trim(), stolenOn: r.stolenOn || undefined, stolenWhere: r.stolenWhere.trim() || undefined,
+      proof: r.proof, reportedAt: at, mine: true, status: 'review', heldByVendor: held,
+      events: [{ at, text: 'Report submitted with police reference' }, ...(held ? [{ at, text: 'This slab is in another vendor\'s inventory right now. It is frozen there during the review.' }] : [])],
+      hits: [],
+    });
+  });
 }
-export function resolveStolen(id: string) { update((d) => { d.stolen.find((x) => x.id === id)!.status = 'resolved'; }); }
+/** Step 2 (Restockd team): review. In the demo you can approve it yourself. */
+export function approveReport(id: string) {
+  update((d) => {
+    const r = d.stolen.find((x) => x.id === id)!;
+    r.status = 'active';
+    const at = nowIso();
+    r.events.push({ at, text: `Review done: cert checked at ${r.grader}, ownership proven (${r.proof === 'inventory' ? 'Restockd inventory' : r.proof === 'invoice' ? 'purchase invoice' : 'photo'})` });
+    r.events.push({ at, text: 'Active: every check and intake is now matched' });
+    if (r.heldByVendor) { r.hits.push({ at, kind: 'intake', where: 'Already in a vendor\'s inventory when reported' }); r.events.push({ at, text: 'Hit: the vendor holding it was informed and the listing stays blocked' }); }
+  });
+}
+/** Step 5: the owner got it back, or the case is closed. */
+export function resolveStolen(id: string) { update((d) => { const r = d.stolen.find((x) => x.id === id)!; r.status = 'resolved'; r.events.push({ at: nowIso(), text: 'Resolved by the owner. The cert is no longer flagged.' }); }); }
+/** Public check (step 3/4). Only active reports count. Every positive check is logged as a hit. */
 export function checkCert(cert: string) {
   const c = cert.trim();
   const r = db.stolen.find((x) => x.cert === c && x.status === 'active');
-  if (r) update((d) => { d.stolen.find((x) => x.id === r.id)!.hits.push({ at: nowIso(), where: 'Checked on the public check page' }); });
+  if (r) update((d) => { const x = d.stolen.find((y) => y.id === r.id)!; x.hits.push({ at: nowIso(), kind: 'check', where: 'Public check page' }); x.events.push({ at: nowIso(), text: 'Hit: someone checked this cert before buying' }); });
   return r ? { stolen: true as const, report: r } : { stolen: false as const };
 }
 

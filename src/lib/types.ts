@@ -115,16 +115,29 @@ export interface Show {
   bringing?: string[];
 }
 
+export type HitKind = 'intake' | 'check' | 'scan' | 'listing';
+export interface StolenHit { at: string; kind: HitKind; where: string }
+export type ProofKind = 'inventory' | 'invoice' | 'photo';
+/**
+ * A stolen-slab report. Lifecycle: review → active → resolved (or rejected).
+ * Only active reports are matched against intakes, checks and scans.
+ */
 export interface StolenReport {
   id: string;
   grader: string;
   cert: string;
   cardName: string;
   reportedAt: string;
+  stolenOn?: string;
+  stolenWhere?: string;
   policeRef: string;
+  proof?: ProofKind;
   mine: boolean;
-  status: 'active' | 'resolved';
-  hits: { at: string; where: string }[];
+  status: 'review' | 'active' | 'resolved' | 'rejected';
+  /** Set when the slab was already in another vendor's inventory when it was reported. */
+  heldByVendor?: boolean;
+  events: { at: string; text: string }[];
+  hits: StolenHit[];
 }
 
 export interface Consignor { id: string; name: string; ownerSharePct: number; paidOut: Cents }

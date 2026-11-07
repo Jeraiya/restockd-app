@@ -42,3 +42,21 @@ describe('wallet', () => {
     expect(after.pending).toBe(before.pending);
   });
 });
+
+describe('stolen registry process', () => {
+  it('a new report starts in review and is not matched until approved', async () => {
+    const s = await import('./store');
+    s.reportStolen({ grader: 'PSA', cert: '12345678', cardName: 'Test card', policeRef: 'NL-1', stolenOn: '', stolenWhere: '', proof: 'invoice', confirmed: true });
+    const r = s.getDB().stolen.find((x) => x.cert === '12345678')!;
+    expect(r.status).toBe('review');
+    expect(s.checkCert('12345678').stolen).toBe(false);
+    s.approveReport(r.id);
+    expect(s.checkCert('12345678').stolen).toBe(true);
+    expect(s.getDB().stolen.find((x) => x.id === r.id)!.hits.length).toBe(1);
+  });
+  it('requires a police reference and confirmation', async () => {
+    const s = await import('./store');
+    expect(() => s.reportStolen({ grader: 'PSA', cert: '22345678', cardName: 'Test', policeRef: '', stolenOn: '', stolenWhere: '', proof: 'invoice', confirmed: true })).toThrow(/police/);
+    expect(() => s.reportStolen({ grader: 'PSA', cert: '22345678', cardName: 'Test', policeRef: 'X-1', stolenOn: '', stolenWhere: '', proof: 'invoice', confirmed: false })).toThrow(/Confirm/);
+  });
+});

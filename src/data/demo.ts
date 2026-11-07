@@ -154,14 +154,16 @@ export function buildDemo(): DB {
   ];
 
   return {
-    version: 3, settings, cards, items, tags, sales, shows, news,
+    version: 4, settings, cards, items, tags, sales, shows, news,
     payouts: [
       { id: 'p1', at: day(-27), amount: 48000, status: 'paid' }, { id: 'p2', at: day(-20), amount: 9600, status: 'paid' },
       { id: 'p3', at: day(-6), amount: 52000, status: 'paid' }, { id: 'p4', at: day(3, 9), amount: 0, status: 'scheduled' },
     ],
     stolen: [
-      { id: 'r1', grader: 'PSA', cert: '61234987', cardName: 'Charizard 4/102 Base Set (PSA 8)', reportedAt: day(-3), policeRef: 'NL-2026-118843', mine: true, status: 'active', hits: [{ at: day(-1, 15), where: 'Scanned at a vendor intake in Antwerp, BE' }] },
-      { id: 'r2', grader: 'CGC', cert: '4011982033', cardName: 'Lugia Neo Genesis 9/111 (CGC 9.5)', reportedAt: day(-18), policeRef: 'DE-2026-55120', mine: false, status: 'active', hits: [] },
+      { id: 'r1', grader: 'PSA', cert: '61234987', cardName: 'Charizard 4/102 Base Set (PSA 8)', reportedAt: day(-3), stolenOn: day(-4), stolenWhere: 'Rotterdam Card Days, from the booth', policeRef: 'NL-2026-118843', proof: 'inventory', mine: true, status: 'active',
+        events: [{ at: day(-3, 10), text: 'Report submitted with police reference' }, { at: day(-3, 14), text: 'Review done: cert exists at PSA, ownership proven by your Restockd inventory' }, { at: day(-3, 14), text: 'Active: every check and intake is now matched' }, { at: day(-1, 15), text: 'Hit: vendor intake in Antwerp, BE. Vendor warned, listing blocked, details saved for the police' }],
+        hits: [{ at: day(-1, 15), kind: 'intake', where: 'Vendor intake in Antwerp, BE' }] },
+      { id: 'r2', grader: 'CGC', cert: '4011982033', cardName: 'Lugia Neo Genesis 9/111 (CGC 9.5)', reportedAt: day(-18), policeRef: 'DE-2026-55120', proof: 'invoice', mine: false, status: 'active', events: [], hits: [] },
     ],
     consignors: [ { id: 'k1', name: 'Sam (friend)', ownerSharePct: 80, paidOut: 0 }, { id: 'k2', name: 'Noah – Discord', ownerSharePct: 85, paidOut: 0 } ],
     members: [ { id: 'm1', name: 'Jeraiya', role: 'owner' }, { id: 'm2', name: 'Lisa', role: 'helper', pin: '1234' } ],
