@@ -526,3 +526,51 @@ body:has(.booth) { background: #0a0a0b; }
 .hero-stats b { font-family: var(--display); font-size: 22px; font-weight: 500; }
 .hero-stats span { font-size: 11px; color: rgba(255,255,255,.55); font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
 body:has(.booth) .toasts { bottom: calc(190px + env(safe-area-inset-bottom, 0px)); }
+
+/* ================= Compact hero + wallet column ================= */
+.hero2 { min-height: 0; padding: 24px 26px 22px; gap: 20px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.hello { font-size: 24px; margin-bottom: 8px; }
+.hero2-amount { font-size: 42px; margin: 0 0 14px; }
+.acts { gap: 12px; margin-bottom: 14px; }
+.act > span { width: 44px; height: 44px; }
+.hero-stats { gap: 18px; margin: 0 0 14px; }
+.hero-stats b { font-size: 18px; }
+.slider { margin-top: 0; gap: 6px; }
+.slider-track { height: 28px; }
+.slider-knob { width: 22px; height: 22px; font-size: 12px; }
+.hero2-chart { gap: 2px; }
+.hero2-sold { font-size: 26px; }
+.hero2-plot { flex: 1; min-height: 160px; }
+.hero2-legend { display: flex; gap: 14px; font-size: 11px; color: rgba(255,255,255,.55); }
+.hero2-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 6px; background: rgba(255,255,255,.22); }
+.hero2-legend i.lime { background: var(--neon); }
+.bento2 { align-items: start; }
+.b-hero { grid-column: 1 / span 8; grid-row: 1; }
+.b-promos { grid-column: 1 / span 8; grid-row: 2; }
+.b-donut { grid-column: 1 / span 4; grid-row: 3; }
+.b-show { grid-column: 5 / span 4; grid-row: 3; }
+.b-wallet { grid-column: 9 / span 4; grid-row: 1 / span 3; }
+.b-channels { grid-column: 1 / span 4; grid-row: 4; }
+.b-hot { grid-column: 5 / span 8; grid-row: 4; }
+.b-donut, .b-show { align-self: stretch; }
+.b-channels, .b-hot { align-self: stretch; }
+.promo { min-height: 150px; }
+.hot-grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.wcard { aspect-ratio: 1.75; }
+@media (max-width: 1280px) {
+  .b-hero { grid-column: 1 / -1; grid-row: auto; }
+  .b-wallet { grid-column: 1 / span 6; grid-row: auto; align-self: stretch; }
+  .b-promos { grid-column: 7 / span 6; grid-row: auto; align-self: stretch; }
+  .b-donut { grid-column: 1 / span 6; grid-row: auto; }
+  .b-show { grid-column: 7 / span 6; grid-row: auto; }
+  .b-channels { grid-column: 1 / span 5; grid-row: auto; }
+  .b-hot { grid-column: 6 / span 7; grid-row: auto; }
+}
+@media (max-width: 860px) {
+  .hero2 { grid-template-columns: 1fr; }
+  .hot-grid.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.hero2-chart { display: flex; flex-direction: column; }
+.hero-stats { flex-wrap: nowrap; }
+@media (max-width: 480px) { .hero-stats { flex-wrap: wrap; } }

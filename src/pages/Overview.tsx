@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Area, AreaChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Icon } from '../components/Icon';
 import { Layout } from '../components/Layout';
 import { Seg, attempt } from '../components/ui';
@@ -28,9 +28,14 @@ export function Overview() {
   // Sales series
   const n = Number(range);
   const days = Array.from({ length: n }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - (n - 1) + i); d.setHours(0, 0, 0, 0); return d; });
-  const chart = days.map((d) => ({ day: fmtDay(d.toISOString()), v: db.sales.filter((s) => new Date(s.at).toDateString() === d.toDateString()).reduce((a, s) => a + s.price, 0) / 100 }));
   const inRange = db.sales.filter((s) => new Date(s.at) >= days[0]);
-  const showMarks = db.shows.filter((x) => x.attending && new Date(x.date) >= days[0] && new Date(x.date) <= new Date()).map((x) => ({ day: fmtDay(x.date), name: x.name }));
+  const weeks = Array.from({ length: Math.ceil(n / 7) }, (_, w) => {
+    const end = new Date(); end.setHours(23, 59, 59, 999); end.setDate(end.getDate() - (Math.ceil(n / 7) - 1 - w) * 7);
+    const start = new Date(end); start.setDate(start.getDate() - 6); start.setHours(0, 0, 0, 0);
+    const v = db.sales.filter((x) => { const t = new Date(x.at); return t >= start && t <= end; }).reduce((a, x) => a + x.price, 0) / 100;
+    const sh = db.shows.find((x) => x.attending && new Date(x.date) >= start && new Date(x.date) <= end && new Date(x.date) <= new Date());
+    return { label: fmtDay(start.toISOString()), v, show: sh?.name };
+  });
   const rangeTotal = inRange.reduce((a, s) => a + s.price, 0);
 
   // Channel split
@@ -56,11 +61,11 @@ export function Overview() {
   ];
   const ready = Math.round((checks.filter((c) => c.ok).length / checks.length) * 100);
 
-  const recent = [...db.sales].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 3);
+  const recent = [...db.sales].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 4);
   const netIn = (from: number, to: number) => db.sales.filter((s) => s.viaWallet && Date.now() - new Date(s.at).getTime() >= from * 86400000 && Date.now() - new Date(s.at).getTime() < to * 86400000).reduce((a, s) => a + s.price - s.fee - s.commission, 0);
   const prev = netIn(30, 60), cur = netIn(0, 30);
   const walletTrend = prev > 0 ? ((cur - prev) / prev) * 100 : undefined;
-  const hot = [...inStock].sort((a, b) => b.scans - a.scans).slice(0, 6);
+  const hot = [...inStock].sort((a, b) => b.scans - a.scans).slice(0, 4);
   const listed = (k: 'ebay' | 'marktplaats' | 'shop') => inStock.filter((i) => i.channels[k] && !(i.pausedOnline && k !== 'shop')).length;
 
   return (
@@ -114,7 +119,6 @@ export function Overview() {
               <div><b>{inStock.length}</b><span>In stock</span></div>
               <div><b>{db.tags.filter((t) => t.ownerId === db.settings.vendor.id && t.status === 'active').length}</b><span>Tags live</span></div>
               <div><b>{inStock.filter((i) => (i.channels.ebay || i.channels.marktplaats) && !i.pausedOnline).length}</b><span>Listed online</span></div>
-              <div><b>{inStock.reduce((a, i) => a + i.scans, 0)}</b><span>Buyer scans</span></div>
             </div>
             <div className="slider">
               <div className="slider-head"><span className="muted small">Show readiness</span><b>{ready}%</b></div>
@@ -123,20 +127,21 @@ export function Overview() {
             </div>
           </div>
           <div className="hero2-chart">
-            <div className="row between"><span className="muted small">Sold, last {range} days</span><Seg size="sm" value={range} onChange={setRange} options={[{ key: '30', label: '30d' }, { key: '90', label: '90d' }]} /></div>
+            <div className="row between"><span className="muted small">Sold per week, last {range} days</span><Seg size="sm" value={range} onChange={setRange} options={[{ key: '30', label: '30d' }, { key: '90', label: '90d' }]} /></div>
             <div className="hero2-sold"><Money cents={rangeTotal} /> <span className="muted small">{inRange.length} sales</span></div>
             <div className="hero2-plot">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chart} margin={{ top: 10, right: 4, left: 4, bottom: 0 }}>
-                  <defs><linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#e6ff00" stopOpacity={0.55} /><stop offset="1" stopColor="#e6ff00" stopOpacity={0} /></linearGradient></defs>
-                  <XAxis dataKey="day" tickLine={false} axisLine={false} interval={Math.floor(n / 4)} />
-                  <YAxis hide domain={[0, 'dataMax + 50']} />
-                  <Tooltip cursor={{ stroke: 'rgba(255,255,255,.35)', strokeDasharray: '3 4' }} content={({ active, payload, label }) => active && payload?.length ? <div className="pill-tip light"><b>{fmt(Number(payload[0].value) * 100)}</b> {label}</div> : null} />
-                  {showMarks.map((m) => <ReferenceLine key={m.day} x={m.day} stroke="rgba(255,255,255,.28)" strokeDasharray="3 4" label={{ value: m.name, position: 'insideTopLeft', fill: 'rgba(255,255,255,.7)', fontSize: 11 }} />)}
-                  <Area type="monotone" dataKey="v" stroke="#e6ff00" strokeWidth={2} fill="url(#hg)" activeDot={{ r: 5, fill: '#fff', stroke: '#e6ff00', strokeWidth: 2 }} />
-                </AreaChart>
+                <BarChart data={weeks} margin={{ top: 6, right: 0, left: 0, bottom: 0 }}>
+                  <XAxis dataKey="label" tickLine={false} axisLine={false} interval={0} tick={{ fontSize: 10 }} />
+                  <YAxis hide domain={[0, 'dataMax']} />
+                  <Tooltip cursor={{ fill: 'rgba(255,255,255,.06)' }} content={({ active, payload }) => active && payload?.length ? <div className="pill-tip light"><b>{fmt(Number(payload[0].value) * 100)}</b> {(payload[0].payload as { show?: string; label: string }).show ?? `week of ${(payload[0].payload as { label: string }).label}`}</div> : null} />
+                  <Bar dataKey="v" radius={[8, 8, 8, 8]} maxBarSize={34} minPointSize={4}>
+                    {weeks.map((w, i) => <Cell key={i} fill={w.show ? '#e6ff00' : 'rgba(255,255,255,.22)'} />)}
+                  </Bar>
+                </BarChart>
               </ResponsiveContainer>
             </div>
+            <div className="hero2-legend"><span><i className="lime" />Week with a show</span><span><i />Other weeks</span></div>
           </div>
         </section>
 
@@ -232,7 +237,7 @@ export function Overview() {
         {/* Buyers looking at */}
         <section className="card b-hot">
           <div className="card-head"><h2>Buyers are looking at</h2><Link className="round-btn sm" to="/insights" aria-label="Insights"><Icon name="up" size={16} /></Link></div>
-          <div className="hot-grid six">
+          <div className="hot-grid four">
             {hot.map((i) => { const c = cardOf(db, i); return (
               <Link to="/inventory" key={i.id} className="hot">
                 <HoloThumb game={c.game} kind={c.kind} size={88} label={c.kind === 'graded' ? `${i.grader} ${i.grade}` : undefined} />
