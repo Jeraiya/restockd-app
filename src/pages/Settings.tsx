@@ -1,14 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Icon } from '../components/Icon';
 import { Layout } from '../components/Layout';
-import { Field, MoneyInput, attempt, toast } from '../components/ui';
-import { priceChanges, resetDemo, setVendorName, updateRules, useDB } from '../data/store';
+import { Field, MoneyInput, attempt, copyText, toast } from '../components/ui';
+import { markRulesReviewed, priceChanges, resetDemo, setVendorName, updateRules, useDB } from '../data/store';
 import { fmt } from '../lib/money';
 import { computePrice } from '../lib/pricing';
 import type { Condition, Language } from '../lib/types';
 
 export function Pricing() {
   const db = useDB();
+  useEffect(() => { markRulesReviewed(); }, []);
   const r = db.settings.rules;
   const changes = priceChanges(db);
   const sample = db.cards.find((c) => c.id === 'c1')!;
@@ -63,7 +64,16 @@ export function Settings() {
   const [confirmReset, setConfirmReset] = useState(false);
   return (
     <Layout title="Settings">
-      <div className="grid g-2">
+      <section className="card invite mt-0">
+        <div className="grow">
+          <span className="badge neon">Grow the network</span>
+          <h2>Invite a vendor</h2>
+          <p className="muted">The more vendors use Restockd, the more buyers check prices with it. Invite a vendor you know: they get their first month of Pro free, you get one month free when they make their first sale.</p>
+          <div className="invite-code"><code>restockd.app/join/{db.settings.referralCode}</code><button className="btn primary" onClick={() => copyText(`https://restockd.app/join/${db.settings.referralCode}`)}>Copy invite link</button></div>
+          <p className="muted small">Example offer for the demo. The real rewards are still to be decided.</p>
+        </div>
+      </section>
+      <div className="grid g-2 mt">
         <div className="card">
           <div className="card-head"><h2>Your business</h2>{db.settings.vendor.verified && <span className="badge pos">Verified</span>}</div>
           <Field label="Vendor name" help="Shown to buyers when they scan your tags."><input id="vname" className="in" value={name} onChange={(e) => setName(e.target.value)} /></Field>

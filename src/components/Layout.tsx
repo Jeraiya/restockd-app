@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { me, priceChanges, switchMember, useDB } from '../data/store';
+import { markNoticeRead, markNoticesRead, me, priceChanges, switchMember, useDB } from '../data/store';
+import { fmtTime } from '../lib/money';
 import { Icon } from './Icon';
 
 export const NAV: { to: string; label: string; icon: string; group: string; ownerOnly?: boolean }[] = [
@@ -29,8 +30,9 @@ export function Layout({ title, sub, actions, children }: { title: string; sub?:
   const user = me(db);
   const owner = user.role === 'owner';
   const [open, setOpen] = useState(false);
+  const [bell, setBell] = useState(false);
   const loc = useLocation();
-  useEffect(() => { setOpen(false); window.scrollTo(0, 0); }, [loc.pathname]);
+  useEffect(() => { setOpen(false); setBell(false); window.scrollTo(0, 0); }, [loc.pathname]);
   const review = priceChanges(db).filter((c) => c.review).length;
   const unread = db.notices.filter((n) => !n.read).length;
   const groups = [...new Set(NAV.map((n) => n.group))];
@@ -77,7 +79,21 @@ export function Layout({ title, sub, actions, children }: { title: string; sub?:
             {actions}
             <span className="demo-bar hide-m">Demo data</span>
             <Link className="round-btn hide-m" to="/inventory" aria-label="Search stock"><Icon name="search" /></Link>
-            <Link className="round-btn" to="/" aria-label="Notifications"><Icon name="alert" />{unread > 0 && <span className="dot-red" />}</Link>
+            <div className="bell-wrap">
+              <button className="round-btn" onClick={() => setBell(!bell)} aria-label="Notifications" aria-expanded={bell}><Icon name="alert" />{unread > 0 && <span className="dot-red" />}</button>
+              {bell && (
+                <div className="bell-panel" role="dialog" aria-label="Notifications">
+                  <div className="row between"><b>Notifications</b>{unread > 0 && <button className="link-btn" onClick={markNoticesRead}>Mark all as read</button>}</div>
+                  {db.notices.length === 0 && <div className="muted small">Nothing new.</div>}
+                  {db.notices.slice(0, 6).map((n) => (
+                    <Link key={n.id} to={n.kind === 'stolen' ? '/stolen' : n.kind === 'lost' ? '/tags' : n.kind === 'price' ? '/show-ready' : '/'} className={`bell-item ${n.read ? '' : 'unread'}`} onClick={() => markNoticeRead(n.id)}>
+                      <span className={`bell-ico ${n.kind}`}><Icon name={n.kind === 'stolen' ? 'shield' : n.kind === 'lost' ? 'tag' : n.kind === 'price' ? 'trending' : 'info'} size={15} /></span>
+                      <span className="grow"><span className="bell-text">{n.text}</span><span className="muted small">{fmtTime(n.at)}</span></span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
         <div className="page-in" key={loc.pathname}>{children}</div>

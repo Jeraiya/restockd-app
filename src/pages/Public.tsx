@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { Icon } from '../components/Icon';
 import { Brand } from '../components/Layout';
 import { attempt } from '../components/ui';
-import { buyerScan, cardOf, checkCert, releaseReservation, reserve, sell, useDB, vendorName } from '../data/store';
+import { buyerScan, cardOf, checkCert, flaggedCert, nextShow, releaseReservation, reserve, sell, tagOfItem, useDB, vendorName } from '../data/store';
 import { fmt, fmtTime } from '../lib/money';
 import { pctChange } from '../lib/pricing';
 import type { StockItem } from '../lib/types';
@@ -13,6 +13,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     <div className="buyer">
       <div className="buyer-top"><Link to="/" className="brand" style={{ padding: 0 }}><Brand /></Link><span className="badge">Buyer view</span></div>
       {children}
+      <div className="buyer-cta card"><div className="grow"><b>Selling at card shows?</b><div className="muted small">Price your stock automatically and let buyers tap to pay. Free to start.</div></div><Link className="btn primary" to="/">Try Restockd</Link></div>
       <div className="buyer-foot">No app needed · <Link to="/check">Check a slab</Link> · <Link to="/">Back to the vendor app</Link></div>
     </div>
   );
@@ -57,7 +58,33 @@ export function TagPage() {
     const last = [...tag.history].reverse().find((h) => h.text.startsWith('Sold'));
     return <Shell><div className="card buyer-card"><h2>{last ? 'Sold' : 'Nothing linked yet'}</h2><p className="muted">{last ? `This card has been sold by ${owner}.` : 'The vendor hasn\'t linked this tag yet.'} See more from {owner} at their booth.</p></div></Shell>;
   }
-  return <Shell><ItemView item={item} owner={owner} onPaid={setPaid} /></Shell>;
+  return <Shell><VendorHeader /><ItemView item={item} owner={owner} onPaid={setPaid} /><MoreFrom exclude={item.id} /></Shell>;
+}
+
+function VendorHeader() {
+  const db = useDB();
+  const v = db.settings.vendor;
+  const show = nextShow(db);
+  const [following, setFollowing] = useState(false);
+  return (
+    <div className="card buyer-card vendor-head">
+      <div className="vendor-av">{v.name.slice(0, 1)}</div>
+      <div className="grow"><div className="row"><b>{v.name}</b>{v.verified && <span className="badge pos">✓ Verified</span>}</div><div className="muted small">{v.city} · {db.settings.followers + (following ? 1 : 0)} followers{show ? ` · next: ${show.name}, booth ${show.booth}` : ''}</div></div>
+      <button className={`btn sm ${following ? '' : 'primary'}`} onClick={() => setFollowing(!following)}>{following ? 'Following' : 'Follow'}</button>
+    </div>
+  );
+}
+
+function MoreFrom({ exclude }: { exclude: string }) {
+  const db = useDB();
+  const more = db.items.filter((i) => i.status === 'in_stock' && i.id !== exclude).sort((a, b) => b.price - a.price).slice(0, 4);
+  if (!more.length) return null;
+  return (
+    <div className="card buyer-card">
+      <div className="card-head"><h2>More from this vendor</h2></div>
+      <div className="pills">{more.map((i) => { const t = tagOfItem(db, i.id); const c = cardOf(db, i); const inner = <><div className="grow"><div className="li-title ellipsis">{c.name}</div><div className="li-sub">{c.set} · {i.location}</div></div><b>{fmt(i.price)}</b></>; return t ? <Link key={i.id} to={`/t/${t.id}`} className="prow">{inner}</Link> : <div key={i.id} className="prow">{inner}</div>; })}</div>
+    </div>
+  );
 }
 
 function ItemView({ item, owner, onPaid }: { item: StockItem; owner: string; onPaid: (id: string) => void }) {
@@ -65,9 +92,10 @@ function ItemView({ item, owner, onPaid }: { item: StockItem; owner: string; onP
   const c = cardOf(db, item);
   const diff = pctChange(c.market.trend, item.price);
   const reserved = item.status === 'reserved' && item.reservedUntil && new Date(item.reservedUntil) > new Date();
+  const stolen = flaggedCert(db, item.cert);
   return (
     <div className="card buyer-card">
-      <div className="row between"><b>{owner}</b><span className="badge pos">✓ Verified vendor</span></div>
+      {stolen && <div className="check-res bad light"><Icon name="alert" /><div><b>This slab is reported stolen.</b><br />Don't buy it and don't confront the seller. The owner has been notified.</div></div>}
       <div className={`buyer-art ${c.kind}`}><span>{c.game}</span></div>
       <h2>{c.name}</h2>
       <div className="muted">{c.set} · {c.number} · {c.kind === 'graded' ? `${item.grader} ${item.grade} · cert ${item.cert}` : `${item.language} · ${item.condition}`}</div>
@@ -81,9 +109,9 @@ function ItemView({ item, owner, onPaid }: { item: StockItem; owner: string; onP
         <div className="li"><div className="grow">30-day average</div><div className="num">{fmt(c.market.avg30)}</div></div>
         <div className="li"><div className="grow muted">Updated</div><div className="muted small">{fmtTime(c.market.updatedAt)}</div></div>
       </div>
-      {item.status === 'in_stock' && (
+      {item.status === 'in_stock' && !stolen && (
         <div className="stack mt">
-          <button className="btn primary big" onClick={() => attempt(() => onPaid(sell({ itemId: item.id, price: item.price, method: 'ideal', channel: 'tag' }).id))}>Pay {fmt(item.price)} with iDEAL</button>
+          <button className="btn primary big" onClick={() => attempt(() => onPaid(sell({ itemId: item.id, price: item.price, method: 'ideal', channel: 'tag' }).id))}>Pay {fmt(item.price)} to {owner} with iDEAL</button>
           <button className="btn" onClick={() => attempt(() => reserve(item.id, 15), 'Held for 15 minutes. Walk to the booth.')}><Icon name="clock" />Hold for 15 minutes</button>
         </div>
       )}

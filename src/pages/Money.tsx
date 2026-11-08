@@ -3,6 +3,7 @@ import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { Icon } from '../components/Icon';
 import { Layout } from '../components/Layout';
 import { Empty, Field, Kpi, Modal, Seg, attempt, copyText, csv, download } from '../components/ui';
+import { WalletStack } from '../components/visual';
 import { addConsignor, cardOf, consignorOwed, itemName, payConsignor, payoutNow, saleName, setPayoutSchedule, toggleChannel, useDB, walletSummary } from '../data/store';
 import { fmt, fmtDate, fmtTime } from '../lib/money';
 
@@ -14,11 +15,22 @@ export function Wallet() {
   const sales = [...db.sales].sort((a, b) => b.at.localeCompare(a.at));
   return (
     <Layout title="Wallet" sub="Your own payment account, connected through Mollie" actions={<button className="btn primary" onClick={() => attempt(() => { const a = payoutNow(); return a; }, 'Payout started to your bank account')}><Icon name="download" />Pay out now</button>}>
-      <div className="grid g-kpi">
-        <Kpi hero label="Available" icon="wallet" value={fmt(w.available)} foot="Ready to pay out" />
-        <Kpi label="On its way" icon="clock" value={fmt(w.pending)} foot="Available after 2 days" />
-        <Kpi label="Sold elsewhere" icon="layers" value={fmt(w.elsewhere)} foot="eBay and Marktplaats pay you directly" />
-        <Kpi label="Owed to consignors" icon="users" value={fmt(w.owedConsignors)} foot="Part of your balance" />
+      <div className="grid wallet-top">
+        <section className="card wallet-panel">
+          <div className="card-head"><h2>Balances</h2><span className="muted small">Tap a card to bring it forward</span></div>
+          <WalletStack cards={[
+            { key: 'av', label: 'Available', amount: w.available, sub: 'Ready to pay out', tone: 'lime' },
+            { key: 'pe', label: 'On its way', amount: w.pending, sub: 'Available after 2 days', tone: 'silver' },
+            { key: 'el', label: 'Sold elsewhere', amount: w.elsewhere, sub: 'eBay and Marktplaats pay you directly', tone: 'blue' },
+            { key: 'co', label: 'Owed to consignors', amount: w.owedConsignors, sub: 'Part of your balance', tone: 'graphite' },
+          ]} />
+        </section>
+        <div className="grid wallet-kpis">
+          <Kpi label="Paid out so far" icon="download" value={fmt(w.paid)} foot={`${db.payouts.filter((p) => p.status === 'paid').length} payouts to your bank`} />
+          <Kpi label="Payment fees" icon="percent" value={fmt(w.fees)} foot="Mollie, example rates" />
+          <Kpi label="Restockd commission" icon="receipt" value={fmt(w.commission)} foot={`${db.settings.commissionPct}% of sales through Restockd`} />
+          <Kpi label="Next payout" icon="clock" value={db.settings.payoutSchedule === 'manual' ? 'When you want' : db.settings.payoutSchedule === 'weekly' ? 'Monday' : '1st of the month'} foot={db.settings.payoutSchedule === 'manual' ? 'Press Pay out now' : 'Automatic'} />
+        </div>
       </div>
       <div className="grid g-main mt">
         <div className="card flush">

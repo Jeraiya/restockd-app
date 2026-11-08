@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Area, AreaChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Icon } from '../components/Icon';
 import { Layout } from '../components/Layout';
 import { Seg, attempt } from '../components/ui';
 import { Donut, HoloThumb, Money, PromoTile, Ring, WalletStack } from '../components/visual';
-import { cardOf, itemName, markNoticesRead, me, nextShow, payoutNow, priceChanges, saleName, tagOfItem, useDB, walletSummary } from '../data/store';
+import { cardOf, dismissOnboarding, itemName, markNoticesRead, me, nextShow, onboardingSteps, payoutNow, priceChanges, saleName, tagOfItem, useDB, walletSummary } from '../data/store';
 import { fmt, fmtDay, fmtTime } from '../lib/money';
 
 const CH_COLORS: Record<string, string> = { booth: '#e6ff00', tag: '#ffffff', shop: '#9fb800', ebay: 'hatch', marktplaats: 'hatch' };
@@ -13,6 +13,11 @@ const CH_COLORS: Record<string, string> = { booth: '#e6ff00', tag: '#ffffff', sh
 export function Overview() {
   const db = useDB();
   const user = me(db);
+  const owner = user.role === 'owner';
+  const steps = onboardingSteps(db);
+  const doneSteps = steps.filter((x) => x.done).length;
+  const today0 = new Date(); today0.setHours(0, 0, 0, 0);
+  const mineToday = db.sales.filter((s) => s.soldBy === user.id && new Date(s.at) >= today0);
   const w = walletSummary(db);
   const [range, setRange] = useState<'30' | '90'>('30');
   const inStock = db.items.filter((i) => i.status !== 'sold');
@@ -25,6 +30,7 @@ export function Overview() {
   const days = Array.from({ length: n }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - (n - 1) + i); d.setHours(0, 0, 0, 0); return d; });
   const chart = days.map((d) => ({ day: fmtDay(d.toISOString()), v: db.sales.filter((s) => new Date(s.at).toDateString() === d.toDateString()).reduce((a, s) => a + s.price, 0) / 100 }));
   const inRange = db.sales.filter((s) => new Date(s.at) >= days[0]);
+  const showMarks = db.shows.filter((x) => x.attending && new Date(x.date) >= days[0] && new Date(x.date) <= new Date()).map((x) => ({ day: fmtDay(x.date), name: x.name }));
   const rangeTotal = inRange.reduce((a, s) => a + s.price, 0);
 
   // Channel split
@@ -70,6 +76,25 @@ export function Overview() {
         </div>
       )}
 
+      {owner && !db.settings.onboarding.dismissed && doneSteps < steps.length && (
+        <section className="card onboard">
+          <div className="onboard-head">
+            <div><h2>Get started</h2><div className="muted small">{doneSteps} of {steps.length} done · about 5 minutes</div></div>
+            <div className="onboard-bar"><span style={{ width: `${(doneSteps / steps.length) * 100}%` }} /></div>
+            <button className="btn sm ghost" onClick={dismissOnboarding}>Hide</button>
+          </div>
+          <div className="onboard-steps">
+            {steps.map((st, i) => (
+              <Link key={st.key} to={st.to} className={`ostep ${st.done ? 'done' : ''}`}>
+                <span className="ostep-n">{st.done ? <Icon name="check" size={14} /> : i + 1}</span>
+                <span className="ostep-t">{st.label}</span>
+                {!st.done && <Icon name="up" size={14} />}
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
       <div className="bento2">
         {/* Hero: black panel with balance, actions and the 3D card */}
         <section className="card dark hero2 b-hero">
@@ -78,12 +103,18 @@ export function Overview() {
             <div className="muted small">Stock value at trend</div>
             <div className="hero2-amount"><Money cents={inStock.reduce((a, i) => a + cardOf(db, i).market.trend, 0)} /></div>
             <div className="acts">
+              <Link to="/booth" className="act"><span className="lime"><Icon name="cart" size={20} /></span>Booth mode</Link>
               {[
-                { to: '/pos', icon: 'cart', label: 'Sell' },
                 { to: '/inventory', icon: 'camera', label: 'Add card' },
                 { to: '/tags', icon: 'tag', label: 'Tap tag' },
+                { to: '/shows', icon: 'clock', label: 'Shows' },
               ].map((a) => <Link key={a.label} to={a.to} className="act"><span><Icon name={a.icon} size={20} /></span>{a.label}</Link>)}
-              <Link to="/show-ready" className="act"><span className="lime"><Icon name="check" size={20} /></span>Show ready</Link>
+            </div>
+            <div className="hero-stats">
+              <div><b>{inStock.length}</b><span>In stock</span></div>
+              <div><b>{db.tags.filter((t) => t.ownerId === db.settings.vendor.id && t.status === 'active').length}</b><span>Tags live</span></div>
+              <div><b>{inStock.filter((i) => (i.channels.ebay || i.channels.marktplaats) && !i.pausedOnline).length}</b><span>Listed online</span></div>
+              <div><b>{inStock.reduce((a, i) => a + i.scans, 0)}</b><span>Buyer scans</span></div>
             </div>
             <div className="slider">
               <div className="slider-head"><span className="muted small">Show readiness</span><b>{ready}%</b></div>
@@ -101,6 +132,7 @@ export function Overview() {
                   <XAxis dataKey="day" tickLine={false} axisLine={false} interval={Math.floor(n / 4)} />
                   <YAxis hide domain={[0, 'dataMax + 50']} />
                   <Tooltip cursor={{ stroke: 'rgba(255,255,255,.35)', strokeDasharray: '3 4' }} content={({ active, payload, label }) => active && payload?.length ? <div className="pill-tip light"><b>{fmt(Number(payload[0].value) * 100)}</b> {label}</div> : null} />
+                  {showMarks.map((m) => <ReferenceLine key={m.day} x={m.day} stroke="rgba(255,255,255,.28)" strokeDasharray="3 4" label={{ value: m.name, position: 'insideTopLeft', fill: 'rgba(255,255,255,.7)', fontSize: 11 }} />)}
                   <Area type="monotone" dataKey="v" stroke="#e6ff00" strokeWidth={2} fill="url(#hg)" activeDot={{ r: 5, fill: '#fff', stroke: '#e6ff00', strokeWidth: 2 }} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -109,6 +141,7 @@ export function Overview() {
         </section>
 
 
+        {owner ? (<>
         {/* Wallet: stacked cards, payout actions and transactions */}
         <section className="card wallet-panel b-wallet">
           <div className="card-head"><h2>My wallet</h2><Link className="wp-add" to="/wallet">Details</Link></div>
@@ -133,10 +166,22 @@ export function Overview() {
             ))}
           </div>
         </section>
+        </>) : (<>
+        {/* Booth helpers don't see the wallet; they see their own sales today */}
+        <section className="card wallet-panel b-wallet">
+          <div className="card-head"><h2>Today at the booth</h2></div>
+          <div className="helper-total"><Money cents={mineToday.reduce((a, s) => a + s.price, 0)} /></div>
+          <div className="muted small">{mineToday.length} sales by you today</div>
+          <Link className="wp-btn lime" to="/booth"><Icon name="cart" size={16} />Open booth mode</Link>
+          <div className="pills">{mineToday.slice(-4).reverse().map((s) => <div className="prow dark" key={s.id}><div className="grow"><div className="li-title ellipsis">{saleName(db, s)}</div><div className="li-sub">{fmtTime(s.at)} · {s.method}</div></div><b><Money cents={s.price} /></b></div>)}</div>
+          <p className="muted small">The wallet and payouts are only visible to the owner.</p>
+        </section>
+
+        </>)}
 
         {/* Promo tiles */}
         <div className="b-promos">
-          <PromoTile to="/show-ready" tone="lime" title={<>Show<br />ready</>} visual={<div className="pv-ring"><span>{ready}%</span></div>} />
+          <PromoTile to="/settings" tone="lime" title={<>Invite a<br />vendor</>} visual={<div className="pv-invite"><i>J</i><i>S</i><i>+</i></div>} />
           <PromoTile to="/tags" tone="lime" title={<>Order<br />tags</>} visual={<div className="pv-tags"><i /><i /><i /></div>} />
           <PromoTile to="/stolen" tone="black" title={<>Check<br />a slab</>} visual={<div className="pv-slab"><Icon name="shield" size={26} /></div>} />
         </div>

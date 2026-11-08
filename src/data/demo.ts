@@ -57,6 +57,7 @@ export function buildDemo(): DB {
     },
     payoutSchedule: 'weekly', mollie: 'connected', commissionPct: 1.5,
     tagDomain: 't.restockd.app', tagCooldownMin: 0, currentMemberId: 'm1',
+    onboarding: { rulesReviewed: false, dismissed: false }, referralCode: 'RESTOCKD-JER', followers: 214,
   };
 
   type Seed = [string, string, StockItem['condition'], StockItem['language'], number, string, Partial<StockItem>?];
@@ -154,7 +155,7 @@ export function buildDemo(): DB {
   ];
 
   return {
-    version: 4, settings, cards, items, tags, sales, shows, news,
+    version: 5, settings, cards, items, tags, sales, shows, news,
     payouts: [
       { id: 'p1', at: day(-27), amount: 48000, status: 'paid' }, { id: 'p2', at: day(-20), amount: 9600, status: 'paid' },
       { id: 'p3', at: day(-6), amount: 52000, status: 'paid' }, { id: 'p4', at: day(3, 9), amount: 0, status: 'scheduled' },

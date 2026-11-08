@@ -60,3 +60,14 @@ describe('stolen registry process', () => {
     expect(() => s.reportStolen({ grader: 'PSA', cert: '22345678', cardName: 'Test', policeRef: 'X-1', stolenOn: '', stolenWhere: '', proof: 'invoice', confirmed: false })).toThrow(/Confirm/);
   });
 });
+
+describe('reservations', () => {
+  it('releases a hold after it expires', async () => {
+    const s = await import('./store');
+    s.reserve('i4', 15);
+    expect(s.getDB().items.find((i) => i.id === 'i4')!.status).toBe('reserved');
+    s.update((d) => { d.items.find((i) => i.id === 'i4')!.reservedUntil = new Date(Date.now() - 1000).toISOString(); });
+    expect(s.expireReservations()).toBe(1);
+    expect(s.getDB().items.find((i) => i.id === 'i4')!.status).toBe('in_stock');
+  });
+});

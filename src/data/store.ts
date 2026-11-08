@@ -10,7 +10,7 @@ function load(): DB {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as DB;
-      if (parsed.version === 4) return parsed;
+      if (parsed.version === 5) return parsed;
     }
   } catch { /* storage blocked: fall back to demo data */ }
   return buildDemo();
@@ -308,6 +308,32 @@ export function checkCert(cert: string) {
   if (r) update((d) => { const x = d.stolen.find((y) => y.id === r.id)!; x.hits.push({ at: nowIso(), kind: 'check', where: 'Public check page' }); x.events.push({ at: nowIso(), text: 'Hit: someone checked this cert before buying' }); });
   return r ? { stolen: true as const, report: r } : { stolen: false as const };
 }
+
+/* ---------- Reservations ---------- */
+/** Releases holds whose 15 minutes have passed. Called on start and every 30 seconds. */
+export function expireReservations() {
+  const now = Date.now();
+  if (!db.items.some((i) => i.status === 'reserved' && i.reservedUntil && new Date(i.reservedUntil).getTime() <= now)) return 0;
+  let n = 0;
+  update((d) => { for (const i of d.items) if (i.status === 'reserved' && i.reservedUntil && new Date(i.reservedUntil).getTime() <= now) { i.status = 'in_stock'; i.reservedUntil = undefined; n++; } });
+  return n;
+}
+
+/* ---------- Onboarding & growth ---------- */
+export function onboardingSteps(d: DB) {
+  const today = startOfToday();
+  return [
+    { key: 'mollie', label: 'Connect your payment account', done: d.settings.mollie === 'connected', to: '/settings' },
+    { key: 'rules', label: 'Check your pricing rules', done: d.settings.onboarding.rulesReviewed, to: '/pricing' },
+    { key: 'tags', label: 'Activate your tags', done: !d.tags.some((t) => t.ownerId === d.settings.vendor.id && t.status === 'shipped'), to: '/tags' },
+    { key: 'cards', label: 'Scan your first cards', done: d.items.length > 0, to: '/inventory' },
+    { key: 'show', label: 'Pick your next show', done: d.shows.some((s) => s.attending && new Date(s.date) >= today), to: '/shows' },
+  ];
+}
+export function markRulesReviewed() { if (!db.settings.onboarding.rulesReviewed) update((d) => { d.settings.onboarding.rulesReviewed = true; }); }
+export function dismissOnboarding() { update((d) => { d.settings.onboarding.dismissed = true; }); }
+export function markNoticeRead(id: string) { update((d) => { const n = d.notices.find((x) => x.id === id); if (n) n.read = true; }); }
+export const flaggedCert = (d: DB, cert?: string) => (cert ? d.stolen.find((r) => r.cert === cert && r.status === 'active') : undefined);
 
 /* ---------- Misc ---------- */
 export function markNoticesRead() { update((d) => { d.notices.forEach((n) => { n.read = true; }); }); }

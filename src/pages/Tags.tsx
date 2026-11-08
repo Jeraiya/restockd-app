@@ -48,21 +48,20 @@ export function Tags() {
       <div className="row wrap mt" style={{ marginBottom: 12 }}>
         <Seg value={filter} onChange={setFilter} options={[{ key: 'all', label: 'All' }, { key: 'active', label: 'Linked' }, { key: 'free', label: 'Free' }, { key: 'shipped', label: 'Not activated' }, { key: 'lost', label: 'Lost' }, { key: 'given', label: 'With buyer' }]} />
       </div>
-      <div className="card flush"><div className="table-wrap"><table className="t">
-        <thead><tr><th>Tag</th><th>Chip</th><th>Status</th><th>Linked to</th><th className="r">Scans</th><th /></tr></thead>
-        <tbody>{rows.map((t) => {
+      <div className="tag-grid">
+        {rows.map((t) => {
           const it = t.itemId ? db.items.find((i) => i.id === t.itemId) : undefined;
           return (
-            <tr key={t.id} className="click" onClick={() => setDetail(t.id)}>
-              <td className="strong">{t.id}</td><td><span className="badge">{t.chip}</span></td>
-              <td><span className={`badge ${STATUS[t.status].cls}`}>{STATUS[t.status].label}</span></td>
-              <td>{it ? `${itemName(db, it)} · ${fmt(it.price)}` : t.location ?? <span className="faint">—</span>}</td>
-              <td className="r">{t.scans}</td>
-              <td className="r"><Icon name="info" /></td>
-            </tr>
+            <button key={t.id} className={`tag-card st-${t.status}`} onClick={() => setDetail(t.id)}>
+              <div className="row between"><span className="tag-disc"><span>R</span></span><span className={`badge ${STATUS[t.status].cls}`}>{STATUS[t.status].label}</span></div>
+              <div className="tag-id">{t.id}</div>
+              <div className="tag-link ellipsis">{it ? itemName(db, it) : t.location ?? (t.status === 'shipped' ? 'Tap to activate' : t.status === 'free' ? 'Ready to link' : '—')}</div>
+              {it && <div className="tag-price">{fmt(it.price)}</div>}
+              <div className="row between small"><span className="muted">{t.chip === 'NTAG424' ? 'Secure chip' : 'Standard chip'}</span><span className="muted">{t.scans} scans</span></div>
+            </button>
           );
-        })}</tbody>
-      </table></div></div>
+        })}
+      </div>
       <p className="muted small">Need more tags? Starter packs ship within the Netherlands as a letterbox parcel. Order in Settings.</p>
 
       {tap && <TapModal result={tap} onClose={() => setTap(null)} />}

@@ -25,15 +25,17 @@ export function Checkout() {
   const [method, setMethod] = useState<PayMethod>('tap');
   const [tookTag, setTookTag] = useState(false);
   const [cashUp, setCashUp] = useState(false);
+  const [receipt, setReceipt] = useState<{ total: number; n: number; method: string } | null>(null);
   const inStock = db.items.filter((i) => i.status === 'in_stock' && !lines.some((l) => l.itemId === i.id));
   const [pick, setPick] = useState('');
 
-  const add = (itemId: string) => { if (!lines.some((l) => l.itemId === itemId)) setLines([...lines, { itemId, discountPct: 0 }]); };
+  const add = (itemId: string) => { setReceipt(null); if (!lines.some((l) => l.itemId === itemId)) setLines([...lines, { itemId, discountPct: 0 }]); };
   const addByTag = () => {
     const r = tapTag(code); setCode('');
     if (r.type === 'linked' && r.item && r.item.status === 'in_stock') { add(r.item.id); toast(`${itemName(db, r.item)} added`); }
     else if (r.type === 'other') toast(`That tag belongs to ${r.owner}.`, true);
     else if (r.type === 'unknown') toast('Not a genuine Restockd tag.', true);
+    else if (r.type === 'linked' && r.item?.status === 'reserved') toast('This card is held for a buyer right now.', true);
     else toast('This tag is not linked to a card in stock.', true);
   };
   const total = lines.reduce((a, l) => { const it = db.items.find((i) => i.id === l.itemId)!; return a + Math.round(it.price * (100 - l.discountPct) / 100); }, 0);
@@ -43,8 +45,8 @@ export function Checkout() {
         const it = db.items.find((i) => i.id === l.itemId)!;
         sell({ itemId: it.id, price: it.price, discount: Math.round(it.price * l.discountPct / 100), method, channel: 'booth', showId: show?.id, buyerTookTag: tookTag });
       }
-      setLines([]); setTookTag(false);
-    }, `Paid ${fmt(total)} · removed from eBay and your shop`);
+      setReceipt({ total, n: lines.length, method: METHODS.find((m) => m.key === method)!.label }); setLines([]); setTookTag(false);
+    });
   };
 
   return (
@@ -81,7 +83,13 @@ export function Checkout() {
                 );
               })}
             </div>
-          ) : <Empty title="Basket is empty" text="Tap a tag or pick a card to start a sale." />}
+          ) : receipt ? (
+            <div className="receipt-inline">
+              <div className="receipt-check sm"><Icon name="check" size={22} /></div>
+              <div className="grow"><b>Paid {fmt(receipt.total)}</b> with {receipt.method}<div className="muted small">{receipt.n} card{receipt.n > 1 ? 's' : ''} sold · removed from eBay and your shop · tags free to reuse</div></div>
+              <button className="btn" onClick={() => setReceipt(null)}>New sale</button>
+            </div>
+          ) : <Empty title="Basket is empty" text="Tap a tag or pick a card to start a sale. Selling at a show? Booth mode is faster." action={<a className="btn mt" href="#/booth">Open booth mode</a>} />}
         </div>
         <div className="card glow">
           <div className="card-head"><h2>Pay</h2></div>

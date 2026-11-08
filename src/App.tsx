@@ -1,6 +1,8 @@
+import { useEffect } from 'react';
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Toasts } from './components/ui';
-import { isOwner, useDB } from './data/store';
+import { expireReservations, isOwner, useDB } from './data/store';
+import { Booth } from './pages/Booth';
 import { Checkout } from './pages/Checkout';
 import { News, Shows } from './pages/Community';
 import { Stolen } from './pages/Stolen';
@@ -16,12 +18,14 @@ export function App() {
   const db = useDB();
   const owner = isOwner(db);
   const guard = (el: JSX.Element) => (owner ? el : <Navigate to="/" replace />);
+  useEffect(() => { expireReservations(); const t = setInterval(expireReservations, 30000); return () => clearInterval(t); }, []);
   return (
     <HashRouter>
       <Routes>
         <Route path="/" element={<Overview />} />
         <Route path="/inventory" element={<Inventory />} />
         <Route path="/pos" element={<Checkout />} />
+        <Route path="/booth" element={<Booth />} />
         <Route path="/show-ready" element={<ShowReady />} />
         <Route path="/tags" element={<Tags />} />
         <Route path="/channels" element={guard(<Channels />)} />

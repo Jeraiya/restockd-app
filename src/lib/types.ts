@@ -175,6 +175,11 @@ export interface Settings {
   tagDomain: string;
   tagCooldownMin: number;
   currentMemberId: string;
+  /** First-run checklist state. */
+  onboarding: { rulesReviewed: boolean; dismissed: boolean };
+  referralCode: string;
+  /** Buyers following this vendor (demo count). */
+  followers: number;
 }
 
 export interface DB {
