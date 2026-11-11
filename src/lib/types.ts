@@ -1,7 +1,7 @@
 /** All money amounts are integers in euro cents. */
 export type Cents = number;
 
-export type Game = 'Pokémon' | 'Magic' | 'Yu-Gi-Oh!' | 'One Piece' | 'Lorcana';
+export type Game = 'Pokémon' | 'Magic' | 'Yu-Gi-Oh!' | 'One Piece' | 'Lorcana' | 'Other';
 export type Condition = 'NM' | 'EX' | 'GD' | 'LP' | 'PL';
 export type Language = 'EN' | 'JP' | 'DE' | 'FR' | 'NL';
 export type Kind = 'single' | 'graded' | 'sealed';
@@ -25,6 +25,8 @@ export interface Card {
   number: string;
   kind: Kind;
   market: MarketPrice;
+  /** Set when the card came from a Restockd HQ import. */
+  hqSku?: string;
 }
 
 export type ItemStatus = 'in_stock' | 'reserved' | 'sold';

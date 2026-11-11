@@ -40,11 +40,14 @@ Try tag codes `04A3F2B1` (linked card), `04A3F2C1` (binder), `04A3F2C2` (free), 
 - `src/lib/pricing.ts`: the pricing engine (tested). All money is integer cents.
 - `src/data/store.ts`: all actions (tags, selling, shows, wallet, consignment, stolen registry).
 - `src/data/demo.ts`: example data. Show names, sales and news are made up.
+- `src/lib/importHq.ts`: reads the stock export of Restockd HQ (Inventory → Import from HQ).
+- `supabase/migrations/0001_platform.sql`: the database for all vendors, with row-level security. Tests in `supabase/tests`.
+- `docs/SYNC.md`: how HQ and the app stay in step.
 - Styling comes from Restockd HQ (`src/styles.css`).
 
 ## Next steps
 
-1. Supabase: accounts, one database for all vendors, row-level security per vendor.
+1. Supabase: create the project and apply `supabase/migrations` (schema and security are ready and tested), then switch the store from demo data to the database.
 2. Mollie Connect for Platforms: a payment account per vendor, application fee per sale.
 3. Price data: Cardmarket price guide import (daily), plus Scryfall / Pokémon TCG sources.
 4. eBay API sync; Marktplaats once approved as a partner.

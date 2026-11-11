@@ -84,7 +84,7 @@ export function Toggle({ on, onChange, label, id }: { on: boolean; onChange: (v:
     </button>
   );
 }
-export const GAME_ABBR: Record<string, string> = { 'Pokémon': 'PKM', Magic: 'MTG', 'Yu-Gi-Oh!': 'YGO', 'One Piece': 'OP', Lorcana: 'LOR' };
+export const GAME_ABBR: Record<string, string> = { 'Pokémon': 'PKM', Magic: 'MTG', 'Yu-Gi-Oh!': 'YGO', 'One Piece': 'OP', Lorcana: 'LOR', Other: 'TCG' };
 export function Thumb({ kind, label }: { kind: string; label: string }) {
   return <div className={`thumb ${kind}`}>{label}</div>;
 }

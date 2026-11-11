@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { computePrice, needsReview, providerFee } from '../lib/pricing';
 import type { Card, Cents, ChannelKey, DB, Member, PayMethod, ProofKind, Sale, SaleChannel, StockItem, Tag } from '../lib/types';
 import { buildDemo } from './demo';
+import type { ImportCandidate } from '../lib/importHq';
 
 const KEY = 'restockd-app-v1';
 
@@ -307,6 +308,42 @@ export function checkCert(cert: string) {
   const r = db.stolen.find((x) => x.cert === c && x.status === 'active');
   if (r) update((d) => { const x = d.stolen.find((y) => y.id === r.id)!; x.hits.push({ at: nowIso(), kind: 'check', where: 'Public check page' }); x.events.push({ at: nowIso(), text: 'Hit: someone checked this cert before buying' }); });
   return r ? { stolen: true as const, report: r } : { stolen: false as const };
+}
+
+/* ---------- Import from Restockd HQ ---------- */
+/**
+ * Adds the accepted rows of an HQ export as catalogue cards and stock items.
+ * The HQ market value (or the HQ price) becomes the card's market price until the nightly price import runs.
+ * keepPrices: use the HQ selling price as a fixed price; otherwise your pricing rules decide.
+ * Rows whose SKU was imported before are skipped, so importing the same file twice is safe.
+ */
+export function importFromHq(cands: ImportCandidate[], keepPrices: boolean) {
+  const known = new Set(db.cards.map((c) => c.hqSku).filter(Boolean));
+  let added = 0, skipped = 0;
+  update((d) => {
+    for (const c of cands) {
+      if (c.status === 'skip' || !c.kind || !c.game) continue;
+      if (c.row.sku && known.has(c.row.sku)) { skipped++; continue; }
+      const trend = c.row.market || c.row.price;
+      const card: Card = {
+        id: uid('c'), game: c.game, name: c.row.name, set: c.row.set || '—', number: c.row.number || '', kind: c.kind, hqSku: c.row.sku || undefined,
+        market: { trend, low: Math.round(trend * 0.93), avg30: trend, updatedAt: nowIso(), history: Array(30).fill(trend) },
+      };
+      d.cards.push(card);
+      for (let u = 0; u < c.units; u++) {
+        const item: StockItem = {
+          id: uid('i'), cardId: card.id, condition: c.condition ?? 'NM', language: 'EN', cost: c.unitCost, price: 0, location: c.row.location,
+          grader: c.grader, grade: c.grade, manualPrice: keepPrices && c.row.price ? c.row.price : undefined,
+          channels: { ebay: false, marktplaats: false, shop: true }, status: 'in_stock', maxDiscountPct: 10, scans: 0, addedAt: nowIso(),
+        };
+        item.price = item.manualPrice ?? computePrice(item, card, d.settings.rules, 'show').price;
+        d.items.unshift(item);
+        added++;
+      }
+      if (c.row.sku) known.add(c.row.sku);
+    }
+  });
+  return { added, skipped };
 }
 
 /* ---------- Reservations ---------- */

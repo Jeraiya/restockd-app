@@ -4,7 +4,8 @@ import { Icon } from '../components/Icon';
 import { Layout } from '../components/Layout';
 import { Delta, Empty, Field, GAME_ABBR, Modal, MoneyInput, Seg, Toggle, attempt, toast } from '../components/ui';
 import { HoloThumb } from '../components/visual';
-import { addItem, cardOf, isOwner, setLocation, setManualPrice, setMaxDiscount, tagOfItem, toggleChannel, useDB } from '../data/store';
+import { addItem, cardOf, importFromHq, isOwner, setLocation, setManualPrice, setMaxDiscount, tagOfItem, toggleChannel, useDB } from '../data/store';
+import { ImportCandidate, SAMPLE_HQ_CSV, mapRow, readHqCsv } from '../lib/importHq';
 import { fmt, fmtDate } from '../lib/money';
 import { computePrice, pctChange } from '../lib/pricing';
 import type { ChannelKey, Condition, Language, StockItem } from '../lib/types';
@@ -18,11 +19,12 @@ export function Inventory() {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
   const rows = useMemo(() => db.items.filter((i) => (filter === 'all' ? true : filter === 'sold' ? i.status === 'sold' : i.status !== 'sold'))
     .filter((i) => { const c = cardOf(db, i); return !q || `${c.name} ${c.set} ${c.number} ${i.cert ?? ''}`.toLowerCase().includes(q.toLowerCase()); }), [db, filter, q]);
 
   return (
-    <Layout title="Inventory" sub={`${db.items.filter((i) => i.status !== 'sold').length} items in stock`} actions={<button className="btn primary" onClick={() => setAdding(true)}><Icon name="camera" />Scan to add</button>}>
+    <Layout title="Inventory" sub={`${db.items.filter((i) => i.status !== 'sold').length} items in stock`} actions={<><button className="btn" onClick={() => setImporting(true)}><Icon name="upload" />Import from HQ</button><button className="btn primary" onClick={() => setAdding(true)}><Icon name="camera" />Scan to add</button></>}>
       <div className="row wrap" style={{ marginBottom: 14 }}>
         <Seg value={filter} onChange={setFilter} options={[{ key: 'in_stock', label: 'In stock' }, { key: 'sold', label: 'Sold' }, { key: 'all', label: 'All' }]} />
         <input id="inv-search" className="in" style={{ maxWidth: 320 }} placeholder="Search card, set, number or cert" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -57,6 +59,7 @@ export function Inventory() {
       <p className="muted small">Orange channel badges are paused while the item is at a show.</p>
       {open && <ItemModal id={open} onClose={() => setOpen(null)} />}
       {adding && <AddModal onClose={() => setAdding(false)} />}
+      {importing && <ImportModal onClose={() => setImporting(false)} />}
     </Layout>
   );
 }
@@ -150,6 +153,63 @@ function AddModal({ onClose }: { onClose: () => void }) {
         </div>
         <Field label="Consignment (optional)"><select id="cons" className="in" value={cons} onChange={(e) => setCons(e.target.value)}><option value="">My own stock</option>{db.consignors.map((k) => <option key={k.id} value={k.id}>For {k.name}</option>)}</select></Field>
         <div className="notice"><Icon name="info" /><div>Price by your rules: <b>{fmt(preview.price)}</b> ({preview.decidedBy}). Trend {fmt(card.market.trend)}.</div></div>
+      </div>
+    </Modal>
+  );
+}
+
+function ImportModal({ onClose }: { onClose: () => void }) {
+  const [cands, setCands] = useState<ImportCandidate[] | null>(null);
+  const [error, setError] = useState('');
+  const [fileName, setFileName] = useState('');
+  const [keep, setKeep] = useState(true);
+  const load = (text: string, name: string) => {
+    const { rows, missing } = readHqCsv(text);
+    setFileName(name);
+    if (missing.length) { setCands(null); setError(`This doesn't look like an HQ stock export. Missing column(s): ${missing.join(', ')}.`); return; }
+    setError(''); setCands(rows.map(mapRow));
+  };
+  const onFile = (f?: File) => { if (!f) return; const r = new FileReader(); r.onload = () => load(String(r.result ?? ''), f.name); r.readAsText(f); };
+  const ok = cands?.filter((c) => c.status !== 'skip') ?? [];
+  const units = ok.reduce((a, c) => a + c.units, 0);
+  return (
+    <Modal title="Import from Restockd HQ" sub="Bring your own stock into the app" onClose={onClose} size="wide"
+      foot={<><button className="btn ghost" onClick={onClose}>Cancel</button><button className="btn primary" disabled={!units} onClick={() => attempt(() => { const r = importFromHq(cands!, keep); onClose(); return r; }, `${units} item${units === 1 ? '' : 's'} imported`)}>Import {units || ''} item{units === 1 ? '' : 's'}</button></>}>
+      <div className="stack">
+        <div className="import-how">
+          <div><span className="ostep-n">1</span><span>In Restockd HQ go to <b>Voorraad</b> and press <b>Exporteren</b>. Turn on cost prices first if you want them imported.</span></div>
+          <div><span className="ostep-n">2</span><span>Choose that CSV file here. Nothing is imported until you confirm.</span></div>
+          <div><span className="ostep-n">3</span><span>Check the preview and press <b>Import</b>. Importing the same file twice doesn't create duplicates.</span></div>
+        </div>
+        <div className="row wrap">
+          <label className="btn" htmlFor="hq-file"><Icon name="upload" />Choose CSV file</label>
+          <input id="hq-file" type="file" accept=".csv,text/csv" hidden onChange={(e) => onFile(e.target.files?.[0])} />
+          <button className="btn ghost" onClick={() => load(SAMPLE_HQ_CSV, 'example-export.csv')}>Try with an example export</button>
+          {fileName && <span className="muted small">{fileName}</span>}
+        </div>
+        {error && <div className="notice warn"><Icon name="alert" /><div>{error}</div></div>}
+        {cands && <>
+          <div className="row wrap">
+            <span className="badge pos">{cands.filter((c) => c.status === 'ok').length} ready</span>
+            <span className="badge warn">{cands.filter((c) => c.status === 'warn').length} with a note</span>
+            <span className="badge">{cands.filter((c) => c.status === 'skip').length} skipped</span>
+          </div>
+          <div className="table-wrap"><table className="t">
+            <thead><tr><th>Item</th><th>Type</th><th>Condition</th><th className="r">Units</th><th className="r">HQ price</th><th>Note</th></tr></thead>
+            <tbody>{cands.map((c) => (
+              <tr key={c.row.line} className={c.status === 'skip' ? 'row-off' : ''}>
+                <td><div className="name">{c.row.name}</div><div className="sub">{[c.row.sku, c.row.set, c.row.number].filter(Boolean).join(' · ')}</div></td>
+                <td>{c.kind ?? c.row.type}</td>
+                <td>{c.kind === 'graded' ? `${c.grader ?? '?'} ${c.grade ?? ''}` : c.kind === 'single' ? c.condition : '—'}</td>
+                <td className="r">{c.units || '—'}</td>
+                <td className="r">{c.row.price ? fmt(c.row.price) : '—'}</td>
+                <td className="small">{c.status === 'skip' ? <span className="muted">Skipped: {c.reason}</span> : c.reason ? <span className="warn-text">{c.reason}</span> : <span className="pos">Ready</span>}</td>
+              </tr>
+            ))}</tbody>
+          </table></div>
+          <label className="check"><input id="keep-prices" type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} />Keep my HQ prices as fixed prices (otherwise my pricing rules decide)</label>
+          <div className="muted small">HQ's export has no language or cert number. Imported cards are set to English; add cert numbers to slabs afterwards. Market prices come from the HQ market value until the nightly price update runs.</div>
+        </>}
       </div>
     </Modal>
   );

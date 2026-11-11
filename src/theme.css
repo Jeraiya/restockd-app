@@ -631,3 +631,10 @@ body {
 .demo-bar { box-shadow: inset 0 1px 0 rgba(255,255,255,.14); }
 /* Booth stays fully dark */
 body:has(.booth) { background: #0a0a0b; }
+.import-how { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.import-how > div { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border-radius: 16px; background: linear-gradient(165deg, rgba(246,247,250,.9), rgba(238,240,244,.7)); font-size: 13px; line-height: 1.45; }
+.import-how .ostep-n { margin-top: 1px; }
+.row-off td { opacity: .5; }
+@media (max-width: 760px) { .import-how { grid-template-columns: 1fr; } }
+/* Dialogs must stay readable: almost opaque glass */
+.modal, .bell-panel { background: linear-gradient(165deg, rgba(255,255,255,.99), rgba(250,251,253,.97)); }
